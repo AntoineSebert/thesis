@@ -1,0 +1,40 @@
+[tool.poetry]
+name = "limulidae"
+version = "0.1.0-alpha"
+description = "Static scheduler maximizing the amount of time that can be dynamically allocated for sporadic tasks."
+
+license = "MPL-2.0"
+
+authors = [
+	"Antoine Sébert <antoine.sb@orange.fr>"
+]
+
+readme = 'README.md'
+
+repository = "https://github.com/AntoineSebert/thesis"
+
+keywords = ['scheduler', 'CLI', 'thesis']
+
+classifiers = [
+	"Development Status :: 3 - Alpha",
+	"Environment :: Console",
+	"Topic :: System :: Operating System Kernels"
+]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+tqdm = "*"
+recordclass = "^0.13.0"
+defusedxml = "^0.6.0"
+
+[tool.poetry.dev-dependencies]
+flake8 = "*"
+flake8-import-order = "^0.18"
+pep8-naming = "^0.9.0"
+flake8-bandit = "^2.1"
+flake8-bugbear = "^20.1"
+flake8-commas = "^2.0"
+flake8-comprehensions = "^3.0"
+flake8-executable = "^2.0"
+flake8-annotations = "^2.0"
+flake8-cognitive-complexity = "^0.0.2"
