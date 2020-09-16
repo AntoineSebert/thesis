@@ -1,59 +1,71 @@
-# .github
+# Metaheuristic Extensibility Scheduling
 
-Every repo contains a README, which is a document that is intended to explain, at first glance, what a project does and how to install or test the code.
+## Description
 
-READMEs are really important because they’re the first item a user will see when encountering your code. Creating a readable README ensures that your co-workers and the public will be able to understand the intention of your program, install the software, and fork and adapt your projects.
+This project aims to deliver a static scheduler that maximizes the amount of time that can be dynamically allocated for sporadic tasks.
 
-We find it helpful to think of the README as a guide to your code or project. It’s often helpful to create sections in the README for users to learn about the project. We recommend the following sections.
+We will be comparing [Approach A] and [Approach B], in a hybrid real-time system composed of heterogeneous fog nodes and providing a global notion of time. Moreover, tasks may have data dependencies, which are modeled using a directed acyclic graph (DAG), where nodes are tasks and edges represent data flows between the tasks.
 
-## A description of what the project is for.
+Our program takes scheduling problems (FCP description and task set), formalized with a dedicated XML schema, as input, and outputs a task graph representing the solution.
 
-This should answer a short list of basic questions:
+The project primarily targets embedded systems with strong real-time requirements and a need for processing unexpected tasks. Critical software for cars or airplanes, or  IoT devices  within the Fog Computing paradigm are expected to benefit from our work.
 
-* **What is this repo or project?** (You can reuse the repo description you used earlier because this section doesn’t have to be long.)
-* **How does it work?**
-* **Who will use this repo or project?**
-* **What is the goal of this project?**  
+The final objective is to increase Quality of Service (QoS) of Fog Computing Platforms (FCP) with best-suitable methods for Extensible Scheduling during the design process.
 
-You likely have the answer to many of these questions in your head and have discussed them with your team. It's helpful to write them down for people who find your repository. Not only will it be easier for developers to know how to fork the project or become involved with the project, but it will be easy for non-coders to understand what the code is designed to do, and how they, too, can become involved.
+## Getting started
 
-## Instructions for how to develop, use, and test the code.
+### Prerequisites
 
-This should answer the question: **How do I get this project to work on my machine? How can I develop for this project?** We find it works really well if you follow a two-step approach to develop the content for this section: first, help someone setup the site who has never done it before, and then write down the exact instructions. Next, ask someone to follow those instructions and see if you’ve missed anything.
+This project has been created with *Python 3.8.5* and [Poetry](https://github.com/python-poetry/poetry) for the packaging. We strongly advice using it with *Python 3.8.x* to avoid unecessary issues.
 
-Important: If relevant code changes, it’s important to test to ensure these instructions continue to work. We also recommend separating the sections for using a project versus developing for it.
+*Note for the unfortunate Microsoft Windows users : you may want to set the default system encoding to UTF-8, see [here](https://docs.python.org/3/using/cmdline.html#envvar-PYTHONUTF8).*
 
-## Instructions for how people can help.
+### Installation
 
-It’s important to explicitly state how they can help and what they can help with. This part of the website should answer the question: **How can outside contributors become involved?** We include a [CONTRIBUTING.md](CONTRIBUTING.md) file in each repo, which outlines the following:
+Simply clone the repository :
+```bash
+git clone https://github.com/AntoineSebert/thesis
+```
 
-* If there are any additional setup steps specific for development.
-* Whether there are explicit Instructions for running tests before contributions are accepted.
-* If there are any requirements for contribution, if any, e.g.
-  * A Contributor License Agreement
-    * CLAHub
-  * If commits should be squashed
-  * Whether there is a specific coding style to adhere to. (Generally contributors will match what they see within a project.)
-* Whether potential contributors should ask before they make significant changes.
-* Whether work-in-progress pull requests are ok.
-* What the [Code of Conduct](CODE_OF_CONDUCT.md) states
+Set the installation directory as the working directory :
+```bash
+cd thesis
+```
 
-We also recommend reading the [Contributor’s Guide](CONTRIBUTING.md), which orients new dev contributors and tells them the best ways to communicate with the dev team.
+Install the dependencies :
+```bash
+poetry install
+```
 
-## List the licensing information for your project.
+### Running the program and the test suite
 
-This part of the repo should answer the question: **What is the license for this project?**
+The test suite can be launched with :
+```bash
+poetry run python tests.py
+```
 
-### Include credit and licenses for embedded resources
+Finally, run the program :
+```bash
+poetry run python src/main.py --help
+```
 
-If your project includes code or other resources (such as icons, fonts, or photos) from outside sources, your project's license description (in the README, LICENSE, and CONTRIBUTING files) should credit the authors of that work and include their license information.
+## Contributions
 
-It's polite to give full credit when reusing work, even if not legally required by the work's license, and this helps users who want to find the original source and use it.
+*Disclaimer*
+Since this project is realized as a thesis project, no PRs concerning important features can be accepted, at least until the end of the thesis (hopefully mid-2021).
 
-We also have a legal responsibility to respect the licenses of work we use. When adapting or embedding outside work, check its license for instructions for complying with that license.
+If you want to get involved, see [CONTRIBUTING.md](CONTRIBUTING.md).
+We use [SemVer](https://semver.org/) for versioning, and flake8 for formatting ... .
+Please note that I also have a [Code of Conduct](CODE_OF_CONDUCT.md).
 
-## List the contact information for your team as well as where to ask questions.
+## License
 
-This part of the repo should make it easy for users to get in touch with the team developing the project. This is also where you should list any listservs, chat programs, or social media groups that have been created to keep contributors informed.
+This project is licensed under the Mozilla Public License 2.0, that you can find in [LICENSE](LICENSE).
 
-Any other information that you’d like to share with users can go in the Wiki section of your repository.
+## Authors
+
+[Antoine/Anthony Sébert](https://github.com/AntoineSebert) - Everything
+
+## Acknowledgments
+
+No.
