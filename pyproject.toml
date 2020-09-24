@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "limulidae"
+name = "extsched"
 version = "0.1.0-alpha"
 description = "Static scheduler maximizing the amount of time that can be dynamically allocated for sporadic tasks."
 
@@ -24,7 +24,6 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.8"
 tqdm = "*"
-recordclass = "^0.13.0"
 defusedxml = "^0.6.0"
 
 [tool.poetry.dev-dependencies]

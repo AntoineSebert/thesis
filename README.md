@@ -55,7 +55,7 @@ poetry run python src/main.py --help
 Since this project is realized as a thesis project, no PRs concerning important features can be accepted, at least until the end of the thesis (hopefully mid-2021).
 
 If you want to get involved, see [CONTRIBUTING.md](CONTRIBUTING.md).
-We use [SemVer](https://semver.org/) for versioning, and flake8 for formatting ... .
+We use [SemVer](https://semver.org/) for versioning, and [flake8](https://gitlab.com/pycqa/flake8) for formatting.
 Please note that I also have a [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
