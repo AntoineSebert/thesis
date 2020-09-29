@@ -111,8 +111,7 @@ class ColoredHandler(Handler, metaclass=Singleton):
 		logging.getLogger().setLevel(0)
 		__class__._verbose = verbose
 		__class__._formatters = {key: logging.Formatter(
-			fmt=value + '[%(asctime)s][%(levelname)s]: %(message)s' + __class__._reset,
-			datefmt='%H:%M:%S',
+			fmt=value + '[%(asctime)s][%(levelname)s]: %(message)s' + __class__._reset, datefmt='%H:%M:%S',
 		) for key, value in __class__._colors.items()}
 
 	def emit(self: Singleton, record: LogRecord) -> NoReturn:
