@@ -26,13 +26,13 @@ from typing import Callable, List, TypeVar
 
 from builder import build
 
-from model import FilepathPair, Problem, Solution
+from model import FilepathPair, Problem, Solution, Configuration
 
 from format import OutputFormat
 
 from log import ColoredHandler
 
-from solver import solve
+from solver import solve, policies, constraints
 
 from tqdm import tqdm
 
@@ -97,26 +97,25 @@ def _create_cli_parser() -> ArgumentParser:
 		metavar="FORMAT",
 		dest="format",
 	)
-	"""
-	parser.add_argument(
-		'-s', '--strategy',
-		nargs=1,
-		default=['rm'],
-		choices=[member.name for member in OutputFormat],
-		help="Strategy, either one of " + ', '.join(member.name for member in Strategy),
-		metavar="FORMAT",
-		dest="format",
-	)
 	parser.add_argument(
 		'-p', '--policy',
 		nargs=1,
 		default=['rm'],
-		choices=[member.name for member in OutputFormat],
-		help="Strategy, either one of " + ', '.join(member.name for member in Strategy),
-		metavar="FORMAT",
-		dest="format",
+		choices=policies.keys(),
+		help="Scheduling policy, either one of " + ', '.join(policies.keys()),
+		metavar="POLICY",
+		dest="policy",
 	)
-	"""
+	parser.add_argument(
+		'-c', '--constraint',
+		nargs=1,
+		default=1,
+		type=int,
+		choices=list(range(1, len(constraints))),
+		help="Constraint, a number between 1 and " + str(len(constraints)),
+		metavar="CONSTRAINT",
+		dest="constraint",
+	)
 	parser.add_argument(
 		"--verbose",
 		action="store_true",
@@ -188,21 +187,21 @@ def _get_filepath_pairs(folder_path: Path, recursive: bool = False) -> List[File
 	return filepath_pairs
 
 
-T = TypeVar('T', FilepathPair, Problem, Solution)
-U = TypeVar('U', Problem, Solution, str)
+INPUT = TypeVar('INPUT', Configuration, Problem, Solution)
+OUTPUT = TypeVar('OUTPUT', Problem, Solution, str)
 
 
-def _solve(filepath_pair: FilepathPair, pbar: tqdm, operations: List[Callable[[T], U]]) -> str:
+def _solve(config: Configuration, pbar: tqdm, operations: List[Callable[[INPUT], OUTPUT]]) -> str:
 	"""Handles a test case from building to solving and formatting.
 
 	Parameters
 	----------
-	filepath_pair : FilepathPair
-		A `FilepathPair` pointing to the `*.tsk` and `*.cfg` files.
-	format : OutputFormat
-		A member of `OutputFormat` to use to format the `Solution` of the `Problem`.
+	config : Configuration
+		A configuration for the scheduling problem.
 	pbar : tqdm
 		A progress bar to update each time an action of the test case in completed.
+	operations : List[Callable[[INPUT], OUTPUT]]
+		A list of chained operations to perform from a filepath pair.
 
 	Returns
 	-------
@@ -210,7 +209,7 @@ def _solve(filepath_pair: FilepathPair, pbar: tqdm, operations: List[Callable[[T
 		A `Solution` formatted as a `str` in the given format.
 	"""
 
-	output = filepath_pair
+	output = config
 
 	for function in operations:
 		output = function(output)
@@ -239,15 +238,19 @@ def main() -> int:
 	if not filepath_pairs:
 		raise FileNotFoundError("No matching files found. At least one *.tsk file and one *.cfg file are necessary.")
 
-	for filepath_pair in filepath_pairs:
-		logging.info("Files found:\n\t" + filepath_pair.tsk.name + "\n\t" + filepath_pair.cfg.name)
+	logging.info("Files found:\n\t" + "\n\t".join(
+		[filepath_pair.tsk.name + "\t" + filepath_pair.cfg.name for filepath_pair in filepath_pairs]
+	))
 
 	operations = [build, solve, OutputFormat[args.format[0]]]
 
 	with ThreadPoolExecutor(max_workers=len(filepath_pairs)) as executor,\
 		tqdm(total=len(filepath_pairs) * len(operations)) as pbar:
 
-		futures = [executor.submit(_solve, filepath_pair, pbar, operations) for filepath_pair in filepath_pairs]
+		futures = [
+			executor.submit(_solve, Configuration(filepath_pair, args.constraint, args.policy), pbar, operations)
+			for filepath_pair in filepath_pairs
+		]
 		results = [future.result() for future in as_completed(futures)]
 
 		logging.info("Total ellasped time: " + str(process_time()) + "s.")

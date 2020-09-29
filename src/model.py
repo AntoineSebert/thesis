@@ -5,6 +5,7 @@
 
 
 from __future__ import annotations
+from enum import IntEnum, unique
 from dataclasses import dataclass, field
 from fractions import Fraction
 from json import JSONEncoder
@@ -12,6 +13,28 @@ from pathlib import Path
 from queue import PriorityQueue
 from typing import Any, Iterable, NamedTuple, Optional, Dict
 from weakref import ReferenceType
+
+
+@unique
+class Criticality(IntEnum):
+	"""Task criticality level
+
+	dyn_0: null
+	dyn_1: null
+	sta_2: null
+	sta_3: null
+	sta_4: bounded jitter
+	sta_5: 0 jitter
+	sta_6: 0 jitter and minimal completion time
+	"""
+
+	dyn_0 = 0
+	dyn_1 = 1
+	sta_2 = 2
+	sta_3 = 3
+	sta_4 = 4
+	sta_5 = 5
+	sta_6 = 6
 
 
 @dataclass
@@ -81,7 +104,7 @@ class Slice:
 
 
 @dataclass
-class Task:
+class Task():
 	"""Represents a task.
 
 	Attributes
@@ -100,9 +123,9 @@ class Task:
 		The start offset of the node.
 	cpu : ReferenceType[Processor]
 		A `Processor` the node is scheduled on. Cannot be None.
-	criticality : int
-		The criticality level. [2; 4] for static stask, [0; 1] for dynamic tasks.
-	causality : Iterable[ReferenceType[Task]]
+	criticality : Criticality
+		The criticality level. [2; 6] for static stask, [0; 1] for dynamic tasks.
+	child : Iterable[ReferenceType[Task]]
 		A list of tasks to be completed before starting.
 	"""
 
@@ -113,7 +136,7 @@ class Task:
 	max_jitter: Optional[int]
 	offset: int
 	cpu: ReferenceType[Processor]
-	criticality: int
+	criticality: Criticality
 	child: Optional[ReferenceType[Task]]
 
 
@@ -147,20 +170,38 @@ class FilepathPair(NamedTuple):
 	cfg: Path
 
 
+class Configuration(NamedTuple):
+	"""Binds a `FilepathPair` to a constraint level and a scheduling policy.
+
+	Attributes
+	----------
+	filepaths : FilepathPair
+		A `FilepathPair` from which a `Problem` will be generated.
+	constraint_level : int
+		A constraint level that adjust which constraints will be met.
+	policy : str
+		A scheduling policy.
+	"""
+
+	filepaths: FilepathPair
+	constraint_level: int
+	policy: str
+
+
 class Problem(NamedTuple):
 	"""A problem holding a `FilepathPair`, a `Graph`, an architecture.
 
 	Attributes
 	----------
-	filepaths : FilepathPair
-		The `FilepathPair` from which the `Problem` has been generated.
+	config : Configuration
+		A configuration for a scheduling problem.
 	graph : Graph
 		A `Graph` containing task sequences.
 	arch : Architecture
 		An `Architecture` containing a sequence of `Processor`.
 	"""
 
-	filepaths: FilepathPair
+	config: Configuration
 	apps: Iterable[App]
 	arch: Architecture
 
@@ -172,11 +213,11 @@ class Solution:
 	Attributes
 	----------
 	filepaths : FilepathPair
-		The `FilepathPair` from which the `Solution` has been generated.
+		The `FilepathPair` from which a `Solution` has been generated.
 	hyperperiod : int
 		The hyperperiod length for this `Solution`.
 	score : int
-		The score of the Solution regarding the ibjective function.
+		The score of a Solution regarding an objective function.
 	arch : Architecture
 		An `Architecture` containing a sequence of `Processor`.
 	tasks : Dict[Task, Core]

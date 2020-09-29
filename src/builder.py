@@ -9,7 +9,7 @@ from pathlib import Path
 from weakref import ref
 from typing import Iterable
 
-from model import Architecture, Core, FilepathPair, App, Task, Problem, Processor
+from model import Architecture, Core, App, Task, Problem, Processor, Criticality, Configuration
 from timed import timed_callable
 
 from defusedxml import ElementTree
@@ -76,7 +76,7 @@ def _import_graph(filepath: Path, arch: Architecture) -> Iterable[App]:
 				if nodes.get(runnable.get("Name")).get("MaxJitter") != "-1" else None,
 				int(nodes.get(runnable.get("Name")).get("EarliestActivation")),
 				ref(arch.get(int(nodes.get(runnable.get("Name")).get("CpuId")))),
-				int(nodes.get(runnable.get("Name")).get("CIL"))
+				Criticality.__members__[int(nodes.get(runnable.get("Name")).get("CIL"))]
 			) for runnable in app.iter("Runnable")
 		]
 
@@ -93,13 +93,13 @@ def _import_graph(filepath: Path, arch: Architecture) -> Iterable[App]:
 
 
 @timed_callable("Building the problem...")
-def build(filepath_pair: FilepathPair) -> Problem:
+def build(config: Configuration) -> Problem:
 	"""Creates an internal representation for a problem.
 
 	Parameters
 	----------
-	filepath_pair : FilepathPair
-		A `FilepathPair` pointing to the `*.tsk` and `*.cfg` files.
+	config : Configuration
+		A configuration for the scheduling problem.
 
 	Returns
 	-------
@@ -107,10 +107,10 @@ def build(filepath_pair: FilepathPair) -> Problem:
 		A `Problem` generated from the test case.
 	"""
 
-	arch = _import_arch(filepath_pair.cfg)
-	logging.info("Imported architecture from " + filepath_pair.cfg.name)
+	arch = _import_arch(config.filepaths.cfg)
+	logging.info("Imported architecture from " + config.filepaths.cfg.name)
 
-	graph = _import_graph(filepath_pair.tsk, arch)
-	logging.info("Imported graphs from " + filepath_pair.tsk.name)
+	graph = _import_graph(config.filepaths.tsk, arch)
+	logging.info("Imported graphs from " + config.filepaths.tsk.name)
 
-	return Problem(filepath_pair, graph, arch)
+	return Problem(config, graph, arch)

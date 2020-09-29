@@ -7,13 +7,29 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from fractions import Fraction
 from queue import PriorityQueue
-from typing import Iterable, List, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple, Dict, Callable
 
 from model import Architecture, App, Task, PrioritizedItem, Problem, Processor, Slice, Solution
-
+from edf import *
 from rate_monotonic import workload
 
 from timed import timed_callable
+
+
+"""Main policy for scheduling, either rate monotonic or earliest deadline first."""
+# make policies functions w/ LRU cache
+policies: Dict[str, Callable[[Iterable[Task]], Iterable[Task]]] = {
+	"edf": [],
+	"rm": []
+}
+
+
+constraints: List[Callable[[Problem, Solution], Solution]] = [
+	lambda p, s: s,
+	lambda p, s: s,
+	lambda p, s: s,
+	lambda p, s: s
+]
 
 
 # FUNCTIONS ###########################################################################################################
@@ -184,7 +200,7 @@ def _generate_solution(problem: Problem) -> Solution:
 		start = 0 if not slices else slices[-1].end + 1
 		problem.arch[node.cpu_id].cores[node.core_id].slices.append(Slice(node.id, start, start + node.wcet))
 
-	return Solution(problem.filepaths, _hyperperiod_duration(problem.arch), 0, problem.arch, [])
+	return Solution(problem.config.filepaths, _hyperperiod_duration(problem.arch), 0, problem.arch, [])
 
 
 def _hyperperiod_duration(arch: Architecture) -> int:
@@ -224,9 +240,11 @@ def solve(problem: Problem) -> Solution:
 	"""
 
 	#problem = _color_graphs(problem)
-	logging.info("Coloration found for:\t" + str(problem.filepaths))
+	logging.info("Coloration found for:\t" + str(problem.config.filepaths))
+
+	# do the incremental thingy avec args et pbar
 
 	solution = _generate_solution(problem)
-	logging.info("Solution found for:\t" + str(problem.filepaths))
+	logging.info("Solution found for:\t" + str(problem.config.filepaths))
 
 	return solution
