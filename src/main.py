@@ -100,7 +100,7 @@ def _create_cli_parser() -> ArgumentParser:
 	parser.add_argument(
 		'-p', '--policy',
 		nargs=1,
-		default=['rm'],
+		default='rm',
 		choices=policies.keys(),
 		help="Scheduling policy, either one of " + ', '.join(policies.keys()),
 		metavar="POLICY",
