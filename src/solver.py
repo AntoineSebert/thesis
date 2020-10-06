@@ -6,10 +6,12 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from fractions import Fraction
+from itertools import groupby
 from queue import PriorityQueue
-from typing import Iterable, List, Optional, Tuple, Dict, Callable
+from typing import List, Optional, Tuple, Dict, Callable
+from functools import singledispatch
 
-from model import Architecture, App, Task, PrioritizedItem, Problem, Processor, Slice, Solution
+from model import Architecture, App, Task, Problem, Processor, Slice, Solution, Criticality, Graph, Configuration
 from edf import *
 from rate_monotonic import workload
 
@@ -111,6 +113,75 @@ def _hyperperiod_duration(arch: Architecture) -> int:
 
 	return 0
 
+@singledispatch
+def pretty_print(solution: Solution, level: int = 0):
+	print(
+		"\nsolution {\n\t" +
+			"configuration {\n\t\t" +
+				"cases : " + str(solution.config.filepaths) + ";\n\t\t" +
+				"constraint level : " + str(solution.config.constraint_level) + ";\n\t\t" +
+				"policy : " + solution.config.policy + ";\n\t" +
+			"}\n\t" +
+			"architecture {\n\t\t" +
+				"\n\t\t".join([
+					"cpu {\n\t\t\t" +
+						"id : " + str(cpu.id) + ";\n\t\t\t" +
+						"\n\t\t\t".join([
+							"core { id : " + str(core.id) + "; macrotick : " + str(core.macrotick) + "; }" for core in cpu.cores
+						]) +
+					"\n\t\t}" for cpu in solution.arch
+				]) + "\n\t" +
+			"}\n\t" +
+			"hyperperiod : " + str(solution.hyperperiod) + ";\n\t" +
+			"score : " + str(solution.score) + ";\n\t" +
+			"mapping {" +
+				"\n\t\t".join([f"{task} : {core};" for task, core in solution.mapping.items()]) +
+			"}\n" +
+		"}\n"
+	)
+
+@pretty_print.register
+def _(problem: Problem, level: int = 0):
+	print(
+		"\nproblem {\n\t" +
+			"configuration {\n\t\t" +
+				"cases : " + str(problem.config.filepaths) + ";\n\t\t" +
+				"constraint level : " + str(problem.config.constraint_level) + ";\n\t\t" +
+				"policy : " + problem.config.policy + ";\n\t" +
+			"}\n\t" +
+			"architecture {\n\t\t" +
+				"\n\t\t".join([
+					"cpu {\n\t\t\t" +
+						"id : " + str(cpu.id) + ";\n\t\t\t" +
+						"\n\t\t\t".join([
+							"core { id : " + str(core.id) + "; macrotick : " + str(core.macrotick) + "; }" for core in cpu.cores
+						]) +
+					"\n\t\t}" for cpu in problem.arch
+				]) + "\n\t" +
+			"}\n\t" +
+			"graph {\n\t\t" +
+				"\n\t\t".join([
+					"app {\n\t\t\t" +
+						"name : " + app.name + ";\n\t\t\t" +
+						"tasks {\n\t\t\t\t" +
+							"\n\t\t\t\t".join([
+								"task {\n\t\t\t\t\t" +
+									"id : " + str(task.id) + ";\n\t\t\t\t\t" +
+									"wcet : " + str(task.wcet) + ";\n\t\t\t\t\t" +
+									"period : " + str(task.period) + ";\n\t\t\t\t\t" +
+									"deadline : " + str(task.deadline) + ";\n\t\t\t\t\t" +
+									("offset : " + str(task.offset) + ";\n\t\t\t\t\t" if task.offset is not None else "") +
+									"cpu : " + str(task.cpu().id) + ";\n\t\t\t\t\t" +
+									"criticality : " + str(int(task.criticality)) + ";\n\t\t\t\t\t" +
+									("child : " + str(task.child().id) + ";" if task.child is not None else "") +
+								"\n\t\t\t\t}" for task in app.tasks
+							]) +
+						"\n\t\t\t}" +
+					"\n\t\t}" for app in problem.graph
+				]) + "\n\t" +
+			"}\n" +
+		"}\n"
+	)
 
 
 # ENTRY POINT #########################################################################################################
@@ -134,4 +205,4 @@ def solve(problem: Problem) -> Solution:
 	solution = _generate_solution(problem)
 	logging.info("Solution found for:\t" + str(problem.config.filepaths))
 
-	return solution
+	pretty_print(solution) #return solution
