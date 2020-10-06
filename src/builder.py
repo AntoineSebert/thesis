@@ -7,9 +7,9 @@
 import logging
 from pathlib import Path
 from weakref import ref
-from typing import Iterable
+from typing import List
 
-from model import Architecture, Core, App, Task, Problem, Processor, Criticality, Configuration
+from model import Architecture, Core, Graph, App, Task, Problem, Processor, Criticality, Configuration
 from timed import timed_callable
 
 from defusedxml import ElementTree
@@ -19,72 +19,68 @@ from defusedxml import ElementTree
 
 
 def _import_arch(filepath: Path) -> Architecture:
-	"""Create the processor architecture from the configuration file, then returns it.
+	"""Returns an architecture from a architecture file.
 
 	Parameters
 	----------
 	filepath : Path
-		A `Path` to a *.cfg* file describing the processor architecture.
+		A `Path` to a *.cfg* file representing the processor architecture.
 
 	Returns
 	-------
 	Architecture
-		An iterable of `Processor`.
+		An list of `Processor`.
 	"""
 
-	return [
-		Processor(
-			i,
-			[
-				Core(
-					ii,
-					int(core.get("MacroTick")) if int(core.get("MacroTick")) != 9999999 else None,
-					0.0,
-					[],
-				) for ii, core in enumerate(sorted(cpu, key=lambda e: int(e.get("Id"))))
-			]
-		) for i, cpu in enumerate(sorted(ElementTree.parse(filepath).iter("Cpu"), key=lambda e: int(e.get("Id"))))
-	]
+	arch: List[Processor] = []
+
+	for cpu in ElementTree.parse(filepath).iter("Cpu"):
+		arch.append(Processor(int(cpu.get("Id")), []))
+		arch[-1].cores = [Core(int(core.get("Id")), ref(arch[-1]), int(core.get("MacroTick"))) for core in cpu]
+
+	return arch
 
 
-def _import_graph(filepath: Path, arch: Architecture) -> Iterable[App]:
+def _import_graph(filepath: Path, arch: Architecture) -> Graph:
 	"""Creates the graph from the tasks file, then returns it.
 
 	Parameters
 	----------
 	filepath : Path
-		A `Path` to a *.tsk* file describing the task graph.
+		A `Path` to a *.tsk* file representing the task graph.
 
 	Returns
 	-------
 	Graph
-		An iterable of `Node`.
+		An app graph.
 	"""
 
 	et = ElementTree.parse(filepath)
 	nodes = {node.get("Name"): node for node in et.iter("Node")}
-	apps = []
+	apps: Graph = []
 
-	for app in et.iter("App"):
+	for app in et.iter("Application"):
+		apps.append(App(app.get("Name"), []))
+
 		tasks = [
 			Task(
-				int(nodes.get(runnable.get("Name")).get("Id")),
-				int(nodes.get(runnable.get("Name")).get("WCET")),
-				int(nodes.get(runnable.get("Name")).get("Period")),
-				int(nodes.get(runnable.get("Name")).get("Deadline")),
-				int(nodes.get(runnable.get("Name")).get("MaxJitter"))
-				if nodes.get(runnable.get("Name")).get("MaxJitter") != "-1" else None,
-				int(nodes.get(runnable.get("Name")).get("EarliestActivation")),
-				ref(arch.get(int(nodes.get(runnable.get("Name")).get("CpuId")))),
-				Criticality.__members__[int(nodes.get(runnable.get("Name")).get("CIL"))]
-			) for runnable in app.iter("Runnable")
+				int(node.get("Id")),
+				ref(apps[-1]),
+				int(node.get("WCET")),
+				int(node.find("Period").get("Value")),
+				int(node.get("Deadline")),
+				int(node.get("EarliestActivation")) if node.get("EarliestActivation") is not None else None,
+				ref(arch[int(node.get("CpuId"))]),
+				Criticality(int(node.get("CIL"))),
+				None
+			) for runnable in app.iter("Runnable") if (node := nodes.get(runnable.get("Name"))) is not None
 		]
 
 		if app.get("Inorder") == "true":
 			for i, task in enumerate(tasks[1:]):
 				task.child = ref(tasks[i - 1])
 
-		apps.append(App(app.get("Name"), tasks))
+		apps[-1].tasks = tasks
 
 	return apps
 
@@ -113,4 +109,4 @@ def build(config: Configuration) -> Problem:
 	graph = _import_graph(config.filepaths.tsk, arch)
 	logging.info("Imported graphs from " + config.filepaths.tsk.name)
 
-	return Problem(config, graph, arch)
+	return Problem(config, arch, graph)
