@@ -11,7 +11,7 @@ from fractions import Fraction
 from json import JSONEncoder
 from pathlib import Path
 from queue import PriorityQueue
-from typing import Any, Iterable, NamedTuple, Optional, Dict
+from typing import Any, List, NamedTuple, Optional, Dict
 from weakref import ReferenceType
 
 
@@ -31,9 +31,8 @@ class Criticality(IntEnum):
 	sta_4 = 4
 
 
-@dataclass
-class Core:
-	"""Represents a core.
+class Core(NamedTuple):
+	"""Represents a core. Immutable.
 
 	Attributes
 	----------
@@ -41,38 +40,33 @@ class Core:
 		The core id within a `Processor`.
 	processor : ReferenceType[Processor]
 		The processor this core belongs to.
-	macrotick : Optional[int]
+	macrotick : int
 		The macrotick of the core.
-	slices : Iterable[ReferenceType[Slice]] (can be empty)
-		The execution slices scheduled on this core.
 	"""
 
 	id: int
 	processor: ReferenceType[Processor]
-	macrotick: Optional[int]
-	slices: Iterable[ReferenceType[Slice]]
-
-	def __eq__(self, other) -> bool:
-		return self.processor is other.processor and self.id == other.id
+	macrotick: int
 
 
-class Processor(NamedTuple):
-	"""Represents a processor.
+@dataclass
+class Processor:
+	"""Represents a processor. Mutable.
 
 	Attributes
 	----------
 	id : int
 		The processor within an `Architecture`.
-	cores : Iterable[Core]
-		The iterable containing the `Core` objects within the Processor.
+	cores : List[Core]
+		The List containing the `Core` objects within the Processor.
 	"""
 
 	id: int
-	cores: Iterable[Core]
+	cores: List[Core]
 
 
-"""An iterable of `Processor` representing an `Architecture`."""
-Architecture = Iterable[Processor]
+"""An List of `Processor` representing an `Architecture`."""
+Architecture = List[Processor]
 
 
 @dataclass
@@ -87,70 +81,75 @@ class Slice:
 		The reference to the core the slice is scheduled on.
 	start : int
 		The start time of the slice.
-	end : int
-		The end time of the slice.
+	stop : int
+		The stop time of the slice.
 	"""
 
 	task: ReferenceType[Task]
 	core: ReferenceType[Core]
 	start: int
-	end: int
+	stop: int
 
 
-@dataclass
-class Task():
+@dataclass(order=True)
+class Task:
 	"""Represents a task.
 
 	Attributes
 	----------
 	id : int
 		The node id within a `Chain`.
+	app : ReferenceType[App]
+		The App to which the task belongs to.
 	wcet : int
-		The WCET of the node. Cannot be `0.0`.
+		The WCET of the node. Cannot be `0`.
 	period : int
-		The period of the node. Cannot be `0.0`.
+		The period of the node. Cannot be `0`.
 	deadline : int
 		The deadline of the node.
-	max_jitter : Optional[int]
-		The eventual jitter of the node.
-	offset : int
+	offset : Optional[int]
 		The start offset of the node.
 	cpu : ReferenceType[Processor]
 		A `Processor` the node is scheduled on. Cannot be None.
 	criticality : Criticality
-		The criticality level. [2; 6] for static stask, [0; 1] for dynamic tasks.
-	child : Iterable[ReferenceType[Task]]
+		The criticality level, [1; 3].
+	child : List[ReferenceType[Task]]
 		A list of tasks to be completed before starting.
 	"""
 
-	id: int
-	wcet: int
-	period: int
-	deadline: int
-	max_jitter: Optional[int]
-	offset: int
-	cpu: ReferenceType[Processor]
-	criticality: Criticality
-	child: Optional[ReferenceType[Task]]
+	id: int=field(compare=False)
+	app: ReferenceType[App]=field(compare=False)
+	wcet: int=field(compare=False)
+	period: int=field(compare=False)
+	deadline: int=field(compare=False)
+	offset: Optional[int]=field(compare=False)
+	cpu: ReferenceType[Processor]=field(compare=False)
+	criticality: Criticality=field(compare=False)
+	child: ReferenceType[Task]=field(compare=False)
 
 
-class App(NamedTuple):
-	"""An application.
+@dataclass
+class App:
+	"""An application. Mutable.
 
 	Attributes
 	----------
 	name : str
 		The name of the Application.
-	tasks : Iterable[Task]
+	tasks : List[Task]
 		The list of tasks within the Application.
 	"""
 
 	name: str
-	tasks: Iterable[Task]
+	tasks: List[Task]
+
+
+"""An list of `App` representing an `Graph`."""
+Graph = List[App]
 
 
 class FilepathPair(NamedTuple):
-	"""Holds a `FilepathPair` to a `*.tsk` and a `*.cfg` file, representing a test case.
+	"""Holds a `FilepathPair` to a `*.tsk` and a `*.cfg` file, representing a test case. Immutable.
 
 	Attributes
 	----------
@@ -165,7 +164,7 @@ class FilepathPair(NamedTuple):
 
 
 class Configuration(NamedTuple):
-	"""Binds a `FilepathPair` to a constraint level and a scheduling policy.
+	"""Binds a `FilepathPair` to a constraint level and a scheduling policy. Immutable.
 
 	Attributes
 	----------
@@ -189,15 +188,15 @@ class Problem(NamedTuple):
 	----------
 	config : Configuration
 		A configuration for a scheduling problem.
-	graph : Graph
-		A `Graph` containing task sequences.
 	arch : Architecture
 		An `Architecture` containing a sequence of `Processor`.
+	graph : Graph
+		A `Graph` containing task sequences.
 	"""
 
 	config: Configuration
-	apps: Iterable[App]
 	arch: Architecture
+	graph: Graph
 
 
 @dataclass
@@ -206,23 +205,23 @@ class Solution:
 
 	Attributes
 	----------
-	filepaths : FilepathPair
-		The `FilepathPair` from which a `Solution` has been generated.
+	config: Configuration
+		A configuration for a scheduling problem.
+	arch : Architecture
+		An `Architecture` containing a sequence of `Processor`.
 	hyperperiod : int
 		The hyperperiod length for this `Solution`.
 	score : int
 		The score of a Solution regarding an objective function.
-	arch : Architecture
-		An `Architecture` containing a sequence of `Processor`.
-	tasks : Dict[Task, Core]
+	mapping : Dict[Task, Core]
 		A mapping between tasks and cores.
 	"""
 
-	filepaths: FilepathPair
+	config: Configuration
+	arch: Architecture
 	hyperperiod: int
 	score: int
-	arch: Architecture
-	tasks: Dict[Task, Core]
+	mapping: Dict[Task, Core]
 
 
 class PriorityQueueEncoder(JSONEncoder):
@@ -239,20 +238,3 @@ class PriorityQueueEncoder(JSONEncoder):
 			return [obj.qsize(), obj.empty()]
 		# Let the base class default method raise the TypeError
 		return JSONEncoder.default(self, obj)
-
-
-@dataclass(order=True)
-class PrioritizedItem:
-	"""An encoder dedicated to parse `PriorityQueue` objects into JSON.
-
-	Attributes
-	----------
-	priority : Fraction
-		The prioroty of the element as a `Fraction`.
-	item : Any
-		The data carried by the element. This field is not taken into account for the prioritization.
-		(default: `field(compare=False)`)
-	"""
-
-	priority: Fraction
-	item: Any = field(compare=False)
