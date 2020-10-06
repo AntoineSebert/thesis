@@ -18,9 +18,9 @@ from timed import timed_callable
 
 """Main policy for scheduling, either rate monotonic or earliest deadline first."""
 # make policies functions w/ LRU cache
-policies: Dict[str, Callable[[Iterable[Task]], Iterable[Task]]] = {
-	"edf": [],
-	"rm": []
+policies: Dict[str, Callable[[List[Task]], List[Task]]] = {
+	"edf": lambda task: task.deadline - task.offset,
+	"rm": lambda task: task.wcet / task.period
 }
 
 
@@ -32,98 +32,14 @@ constraints: List[Callable[[Problem, Solution], Solution]] = [
 ]
 
 
+objectives: Dict[str, Callable[[Solution], float]] = []
+
+
 # FUNCTIONS ###########################################################################################################
 
 
-def _get_processes_for_core(graph: App, core: Tuple[int, int]) -> Optional[Iterable[Task]]:
-	"""Returns an eventual list of processes scheduled on a core.
-
-	Parameters
-	----------
-	graph : Graph
-		An iterable of `Node`.
-	core : Tuple[int, int]
-		A core to look for in the processes' attributes, represented as a tuple.
-		The first member is the cpu id, the second the core id.
-
-	Returns
-	-------
-	Optional[List[nodes]] (should be Iterable[ref(Node)])
-		A list of processes if there are any.
-	"""
-
-	return [node for node in graph if node.cpu_id == core[0] and node.core_id == core[1]]
-
-
-def _get_cpuload(graph: App, cpu: Processor) -> Processor:
-	"""Get the workload carried by the processes scheduled on a cpu, and by core.
-
-	Parameters
-	----------
-	graph : Graph
-		A `Graph` in which perform the search.
-	cpu : Processor
-		A `Processor`.
-
-	Returns
-	-------
-	Processor
-		A processor whose workload has been updated (inclusing its cores).
-	"""
-
-	pqueue = PriorityQueue(maxsize=len(cpu.cores))
-	workload_sum = 0.0
-	for core in cpu.cores:
-		core_workload = sum(_get_processes_for_core(graph, (cpu.id, core.id)))
-		workload_sum += core_workload
-		pqueue.put(PrioritizedItem(core_workload, core.id))
-
-	return workload_sum
-
-
-def _node_stress(node: Task) -> Fraction:
-	"""Computes the stress ratio for a node
-
-	Parameters
-	----------
-	node: Node
-		A `Node`.
-
-	Returns
-	-------
-	Fraction
-		The stress level for the `Node`.
-	"""
-
-	return Fraction(node.period - node.offset, node.wcet)
-
-
-def _create_node_pqueue(graph: App, unassigned: bool = True) -> PriorityQueue:
-	"""Creates a priority queue for all nodes in the problem, depending on the node stress.
-
-	Parameters
-	----------
-	graph : Graph
-		A `Graph`.
-	unassigned: bool
-		If set to `True`, only the `Node` objects those attribute `core_id` is `None` will be taken (default: `True`).
-
-	Returns
-	-------
-	node_pqueue : PriorityQueue
-		A `PriorityQueue` containing tuples of node stress and node id.
-	"""
-
-	node_pqueue = PriorityQueue(maxsize=len(graph))
-
-	for node in filter(lambda n: n.core_id is None, graph) if unassigned else graph:
-		node_pqueue.put(PrioritizedItem(_node_stress(node), node.id))
-
-	return node_pqueue
-
-
-def _update_workload(problem: Problem) -> Problem:
-	"""Updates the processors workload of a problem.
+def _create_task_pqueue(config: Configuration, graph : Graph) -> Dict[Criticality, PriorityQueue]:
+	"""Creates a leveled priority queue for all tasks in the problem, depending on the criticality level and the scheduling policy.
 
 	Parameters
 	----------
@@ -132,47 +48,21 @@ def _update_workload(problem: Problem) -> Problem:
 
 	Returns
 	-------
-	problem : Problem
-		The updated `Problem`.
+	crit_pqueue : PriorityQueue[Task]
+		A dictionary of criticality as keys and `PriorityQueue` objects containing tuples of task priority and task as values.
 	"""
 
-	with ThreadPoolExecutor(max_workers=len(problem.arch)) as executor:
-		futures = [executor.submit(_get_cpuload, problem.apps, cpu) for cpu in problem.arch]
-		problem = problem._replace(arch=[future.result() for future in futures])
+	crit_pqueue: Dict[Criticality, PriorityQueue[Task]] = {}
+	tasks = [task for app in graph for task in app.tasks]
+	key = lambda task: task.criticality
 
-	return problem
+	for criticality, tasks in groupby(sorted(tasks, key=key), key):
+		tasks = list(tasks)
+		crit_pqueue[criticality] = PriorityQueue(maxsize=len(tasks))
+		for task in tasks:
+			crit_pqueue[criticality].put((policies[config.policy](task), task))
 
-
-def _color_graphs(problem: Problem) -> List[Tuple[int, Tuple[int, int]]]:
-	"""Color the graph within the problem.
-
-	Parameters
-	----------
-	problem : Problem
-		A `Problem`.
-
-	Returns
-	-------
-	problem : Problem
-		The colored `Problem`. The `core_id` attribute of all `Node` objects in `problem.graph` is assigned.
-	"""
-
-	node_pq = _create_node_pqueue(problem.apps)
-	problem = _update_workload(problem)
-
-	# while node_pq not empty
-	while not node_pq.empty():
-		# get first item of node_pq
-		node_id = node_pq.get_nowait().item
-		node = problem.apps[node_id]
-		# add first core to it
-		core = problem.arch[node.cpu_id].workload[1].get_nowait()
-		problem.apps[node.id] = node._replace(core_id=core.item)
-		problem.arch[node.cpu_id].workload[1].put_nowait(core)
-		# reschedule cpu
-		problem.arch[problem.apps[node_id].cpu_id] = _get_cpuload(problem.apps, problem.arch[node.cpu_id])
-
-	return problem
+	return crit_pqueue
 
 
 def _generate_solution(problem: Problem) -> Solution:
@@ -189,18 +79,20 @@ def _generate_solution(problem: Problem) -> Solution:
 		A `Solution`.
 	"""
 
-	node_pq = _create_node_pqueue(problem.apps, False)
+	crit_pqueue: Dict[Criticality, PriorityQueue] = _create_task_pqueue(problem.config, problem.graph)
 
-	while not node_pq.empty():
-		node_id = node_pq.get_nowait().item
-		node = problem.apps[node_id]
-		# assign time slice for each process
-		slices = problem.arch[node.cpu_id].cores[node.core_id].slices
-		# add it to corresponding core, at the end of the list
-		start = 0 if not slices else slices[-1].end + 1
-		problem.arch[node.cpu_id].cores[node.core_id].slices.append(Slice(node.id, start, start + node.wcet))
+	# check if available cores > processes to schedule then no conflicts !
+	# do the incremental thingy
+	# foreach level
+		# foreach task
+		# get least used core within task cpu
+		# if not schedulable
+			# if no backtrack possible
+				# break highest contraint
+			# else backtrack
+		# else schedule
 
-	return Solution(problem.config.filepaths, _hyperperiod_duration(problem.arch), 0, problem.arch, [])
+	return Solution(problem.config, problem.arch, _hyperperiod_duration(problem.arch), 0, {})
 
 
 def _hyperperiod_duration(arch: Architecture) -> int:
@@ -217,8 +109,8 @@ def _hyperperiod_duration(arch: Architecture) -> int:
 		The hyperperiod length for the solution.
 	"""
 
-	ends = [core.slices[-1].end for cpu in arch for core in cpu.cores if core.slices]
-	return max(ends) if len(ends) else 0
+	return 0
+
 
 
 # ENTRY POINT #########################################################################################################
@@ -238,11 +130,6 @@ def solve(problem: Problem) -> Solution:
 	solution : Solution
 		A solution for the problem.
 	"""
-
-	#problem = _color_graphs(problem)
-	logging.info("Coloration found for:\t" + str(problem.config.filepaths))
-
-	# do the incremental thingy avec args et pbar
 
 	solution = _generate_solution(problem)
 	logging.info("Solution found for:\t" + str(problem.config.filepaths))
