@@ -19,22 +19,16 @@ from weakref import ReferenceType
 class Criticality(IntEnum):
 	"""Task criticality level
 
-	dyn_0: null
-	dyn_1: null
-	sta_2: null
-	sta_3: null
-	sta_4: bounded jitter
-	sta_5: 0 jitter
-	sta_6: 0 jitter and minimal completion time
+	sta_1: null
+	sta_2: bounded jitter
+	sta_3: 0 jitter
+	sta_4: 0 jitter and minimal completion time
 	"""
 
-	dyn_0 = 0
-	dyn_1 = 1
+	sta_1 = 1
 	sta_2 = 2
 	sta_3 = 3
 	sta_4 = 4
-	sta_5 = 5
-	sta_6 = 6
 
 
 @dataclass
