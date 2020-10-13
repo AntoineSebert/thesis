@@ -5,14 +5,17 @@
 
 
 from __future__ import annotations
-from enum import IntEnum, unique
+
 from dataclasses import dataclass, field
-from fractions import Fraction
+from enum import IntEnum, unique
+from functools import cached_property
 from json import JSONEncoder
 from pathlib import Path
 from queue import PriorityQueue
-from typing import Any, List, NamedTuple, Optional, Dict
-from weakref import ReferenceType
+from typing import Any, Dict, List, NamedTuple, Optional
+from weakref import ReferenceType, ref
+
+from defusedxml import ElementTree
 
 
 @unique
@@ -48,6 +51,9 @@ class Core(NamedTuple):
 	processor: ReferenceType[Processor]
 	macrotick: int
 
+	def pformat(self: Core, level: int = 0) -> str:
+		return ("\t" * level) + f"core {{ id : {self.id}; macrotick : {self.macrotick}; }}"
+
 
 @dataclass
 class Processor:
@@ -63,6 +69,14 @@ class Processor:
 
 	id: int
 	cores: List[Core]
+
+	def pformat(self: Processor, level: int = 0) -> str:
+		i = "\n" + ("\t" * level)
+
+		return (i + "cpu {" + i
+		+ f"\tid : {self.id};\n"
+		+ ("\n").join([core.pformat(level + 1) for core in self.cores])
+		+ i + "}")
 
 
 """An List of `Processor` representing an `Architecture`."""
@@ -137,6 +151,25 @@ class Task:
 		self.cpu = ref(cpu)
 		self.criticality = Criticality(int(node.get("CIL")))
 
+	def pformat(self: Task, level: int = 0) -> str:
+		i = "\n" + ("\t" * level)
+
+		return (i + "task {" + i
+			+ f"\tid : {self.id};{i}"
+			+ f"\tapp : {self.app().name};{i}"
+			+ f"\twcet : {self.wcet};{i}"
+			+ f"\tperiod : {self.period};{i}"
+			+ f"\tdeadline : {self.deadline};{i}"
+			+ (f"\toffset : {self.offset};{i}" if self.offset is not None else "")
+			+ f"\tcpu : {self.cpu().id};{i}"
+			+ f"\tcriticality : {int(self.criticality)};{i}"
+			+ (f"\tchild : {self.child().id};" if self.child is not None else "")
+		+ i + "}")
+
+	@cached_property
+	def score(self:Task, policy) -> int:
+		return 0
+
 
 @dataclass
 class App:
@@ -152,6 +185,16 @@ class App:
 
 	name: str
 	tasks: List[Task]
+
+	def pformat(self: App, level: int = 0) -> str:
+		i = "\n" + ("\t" * level)
+
+		return (i + "app {" + i
+			+ f"\tname : {self.name};{i}"
+			+ f"\ttasks {{" +
+				("").join([task.pformat(level + 2) for task in self.tasks])
+			+ i + "\t}"
+		+ i + "}")
 
 
 """An list of `App` representing an `Graph`."""
@@ -189,6 +232,13 @@ class Configuration(NamedTuple):
 	filepaths: FilepathPair
 	constraint_level: int
 	policy: str
+
+	def pformat(self: Configuration, level: int = 0) -> str:
+		i = "\n" + ("\t" * level)
+
+		return (i + "configuration {" + i
+			+ f"\tcases : {self.filepaths};{i}\tconstraint level : {self.constraint_level};{i}\tpolicy : {self.policy};"
+		+ i + "}")
 
 
 class Problem(NamedTuple):
@@ -231,7 +281,7 @@ class Solution:
 	arch: Architecture
 	hyperperiod: int
 	score: int
-	mapping: Dict[Task, Core]
+	mapping: Dict[ReferenceType[Core], List[ReferenceType[Task]]]
 
 
 class PriorityQueueEncoder(JSONEncoder):

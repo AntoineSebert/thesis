@@ -4,16 +4,12 @@
 # IMPORTS #############################################################################################################
 
 import logging
-from concurrent.futures import ThreadPoolExecutor
-from fractions import Fraction
+from functools import singledispatch
 from itertools import groupby
 from queue import PriorityQueue
-from typing import List, Optional, Tuple, Dict, Callable
-from functools import singledispatch
+from typing import Callable, Dict, List
 
-from model import Architecture, App, Task, Problem, Processor, Slice, Solution, Criticality, Graph, Configuration
-from edf import *
-from rate_monotonic import workload
+from model import Architecture, Configuration, Criticality, Graph, Problem, Processor, Solution, Task
 
 from timed import timed_callable
 
@@ -22,7 +18,7 @@ from timed import timed_callable
 # make policies functions w/ LRU cache
 policies: Dict[str, Callable[[List[Task]], List[Task]]] = {
 	"edf": lambda task: task.deadline - task.offset,
-	"rm": lambda task: task.wcet / task.period
+	"rm": lambda task: task.wcet / task.period,
 }
 
 
@@ -30,7 +26,7 @@ constraints: List[Callable[[Problem, Solution], Solution]] = [
 	lambda p, s: s,
 	lambda p, s: s,
 	lambda p, s: s,
-	lambda p, s: s
+	lambda p, s: s,
 ]
 
 
@@ -40,8 +36,9 @@ objectives: Dict[str, Callable[[Solution], float]] = []
 # FUNCTIONS ###########################################################################################################
 
 
-def _create_task_pqueue(config: Configuration, graph : Graph) -> Dict[Criticality, PriorityQueue]:
-	"""Creates a leveled priority queue for all tasks in the problem, depending on the criticality level and the scheduling policy.
+def _create_task_pqueue(config: Configuration, graph: Graph) -> Dict[Criticality, PriorityQueue]:
+	"""Creates a leveled priority queue for all tasks in the problem, depending on the criticality level and the
+	scheduling policy.
 
 	Parameters
 	----------
@@ -51,14 +48,15 @@ def _create_task_pqueue(config: Configuration, graph : Graph) -> Dict[Criticalit
 	Returns
 	-------
 	crit_pqueue : PriorityQueue[Task]
-		A dictionary of criticality as keys and `PriorityQueue` objects containing tuples of task priority and task as values.
+		A dictionary of criticality as keys and `PriorityQueue` objects containing tuples of task priority and task as
+		values.
 	"""
 
-	crit_pqueue: Dict[Criticality, PriorityQueue[Task]] = {}
+	crit_pqueue: Dict[Criticality, PriorityQueue] = {}
 	tasks = [task for app in graph for task in app.tasks]
 	key = lambda task: task.criticality
 
-	for criticality, tasks in groupby(sorted(tasks, key=key), key):
+	for criticality, tasks in groupby(sorted(tasks, key=key, reverse=True), key):
 		tasks = list(tasks)
 		crit_pqueue[criticality] = PriorityQueue(maxsize=len(tasks))
 		for task in tasks:
@@ -83,16 +81,21 @@ def _generate_solution(problem: Problem) -> Solution:
 
 	crit_pqueue: Dict[Criticality, PriorityQueue] = _create_task_pqueue(problem.config, problem.graph)
 
-	# check if available cores > processes to schedule then no conflicts !
-	# do the incremental thingy
-	# foreach level
-		# foreach task
-		# get least used core within task cpu
-		# if not schedulable
-			# if no backtrack possible
-				# break highest contraint
-			# else backtrack
-		# else schedule
+	for crit, pqueue in crit_pqueue.items():
+		while not pqueue.empty():
+			task = pqueue.get()
+			print(task)
+
+	"""
+	foreach level
+		foreach task
+			get least used core within task cpu
+			if not schedulable
+				if no backtrack possible
+					break highest contraint
+				else backtrack
+			else schedule
+	"""
 
 	return Solution(problem.config, problem.arch, _hyperperiod_duration(problem.arch), 0, {})
 
@@ -113,75 +116,29 @@ def _hyperperiod_duration(arch: Architecture) -> int:
 
 	return 0
 
+
 @singledispatch
-def pretty_print(solution: Solution, level: int = 0):
-	print(
-		"\nsolution {\n\t" +
-			"configuration {\n\t\t" +
-				"cases : " + str(solution.config.filepaths) + ";\n\t\t" +
-				"constraint level : " + str(solution.config.constraint_level) + ";\n\t\t" +
-				"policy : " + solution.config.policy + ";\n\t" +
-			"}\n\t" +
-			"architecture {\n\t\t" +
-				"\n\t\t".join([
-					"cpu {\n\t\t\t" +
-						"id : " + str(cpu.id) + ";\n\t\t\t" +
-						"\n\t\t\t".join([
-							"core { id : " + str(core.id) + "; macrotick : " + str(core.macrotick) + "; }" for core in cpu.cores
-						]) +
-					"\n\t\t}" for cpu in solution.arch
-				]) + "\n\t" +
-			"}\n\t" +
-			"hyperperiod : " + str(solution.hyperperiod) + ";\n\t" +
-			"score : " + str(solution.score) + ";\n\t" +
-			"mapping {" +
-				"\n\t\t".join([f"{task} : {core};" for task, core in solution.mapping.items()]) +
-			"}\n" +
-		"}\n"
-	)
+def pretty_print(solution: Solution, level: int = 0) -> None:
+	i = "\n" + ("\t" * level)
+
+	print("\nsolution {"
+		+ solution.config.pformat(level + 1)
+		+ i + "\tarchitecture {" + ("").join([cpu.pformat(level + 2) for cpu in solution.arch]) + i + "\t}\n"
+		+ f"\thyperperiod : {solution.hyperperiod};\n\t"
+		+ f"score : {solution.score};\n\t"
+		+ "mapping {" + "\n\t\t".join([f"{task} : {core};" for task, core in solution.mapping.items()]) + "}\n"
+		+ "}\n")
+
 
 @pretty_print.register
-def _(problem: Problem, level: int = 0):
-	print(
-		"\nproblem {\n\t" +
-			"configuration {\n\t\t" +
-				"cases : " + str(problem.config.filepaths) + ";\n\t\t" +
-				"constraint level : " + str(problem.config.constraint_level) + ";\n\t\t" +
-				"policy : " + problem.config.policy + ";\n\t" +
-			"}\n\t" +
-			"architecture {\n\t\t" +
-				"\n\t\t".join([
-					"cpu {\n\t\t\t" +
-						"id : " + str(cpu.id) + ";\n\t\t\t" +
-						"\n\t\t\t".join([
-							"core { id : " + str(core.id) + "; macrotick : " + str(core.macrotick) + "; }" for core in cpu.cores
-						]) +
-					"\n\t\t}" for cpu in problem.arch
-				]) + "\n\t" +
-			"}\n\t" +
-			"graph {\n\t\t" +
-				"\n\t\t".join([
-					"app {\n\t\t\t" +
-						"name : " + app.name + ";\n\t\t\t" +
-						"tasks {\n\t\t\t\t" +
-							"\n\t\t\t\t".join([
-								"task {\n\t\t\t\t\t" +
-									"id : " + str(task.id) + ";\n\t\t\t\t\t" +
-									"wcet : " + str(task.wcet) + ";\n\t\t\t\t\t" +
-									"period : " + str(task.period) + ";\n\t\t\t\t\t" +
-									"deadline : " + str(task.deadline) + ";\n\t\t\t\t\t" +
-									("offset : " + str(task.offset) + ";\n\t\t\t\t\t" if task.offset is not None else "") +
-									"cpu : " + str(task.cpu().id) + ";\n\t\t\t\t\t" +
-									"criticality : " + str(int(task.criticality)) + ";\n\t\t\t\t\t" +
-									("child : " + str(task.child().id) + ";" if task.child is not None else "") +
-								"\n\t\t\t\t}" for task in app.tasks
-							]) +
-						"\n\t\t\t}" +
-					"\n\t\t}" for app in problem.graph
-				]) + "\n\t" +
-			"}\n" +
-		"}\n"
-	)
+def _(problem: Problem, level: int = 0) -> None:
+	i = "\n" + ("\t" * level)
+
+	print("\nproblem {\t"
+		+ problem.config.pformat(level + 1)
+		+ i + "\tarchitecture {" + ("").join([cpu.pformat(level + 2) for cpu in problem.arch]) + i + "\t}"
+		+ i + "\tgraph {" + ("").join([app.pformat(level + 2) for app in problem.graph]) + i + "\t}"
+		+ "}\n")
 
 
 # ENTRY POINT #########################################################################################################
@@ -205,4 +162,5 @@ def solve(problem: Problem) -> Solution:
 	solution = _generate_solution(problem)
 	logging.info("Solution found for:\t" + str(problem.config.filepaths))
 
-	pretty_print(solution) #return solution
+	pretty_print(problem)
+	pretty_print(solution)  # return solution
