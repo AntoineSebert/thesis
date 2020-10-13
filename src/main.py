@@ -26,13 +26,13 @@ from typing import Callable, List, TypeVar
 
 from builder import build
 
-from model import FilepathPair, Problem, Solution, Configuration
-
 from format import OutputFormat
 
 from log import ColoredHandler
 
-from solver import solve, policies, constraints
+from model import Configuration, FilepathPair, Problem, Solution
+
+from solver import constraints, policies, solve
 
 from tqdm import tqdm
 
@@ -175,14 +175,12 @@ def _get_filepath_pairs(folder_path: Path, recursive: bool = False) -> List[File
 	except StopIteration:
 		pass
 
-	if not recursive:
-		return filepath_pairs
-
-	for subfolder in filter(lambda e: e.is_dir(), folder_path.iterdir()):
-		try:
-			filepath_pairs += [filepath for filepath in _get_filepath_pairs(subfolder, True) if filepath]
-		except StopIteration:
-			pass
+	if recursive:
+		for subfolder in filter(lambda e: e.is_dir(), folder_path.iterdir()):
+			try:
+				filepath_pairs += [filepath for filepath in _get_filepath_pairs(subfolder, True) if filepath]
+			except StopIteration:
+				pass
 
 	return filepath_pairs
 
