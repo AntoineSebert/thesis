@@ -6,13 +6,14 @@
 
 import logging
 from pathlib import Path
-from weakref import ref
 from typing import List
-
-from model import Architecture, Core, Graph, App, Task, Problem, Processor, Criticality, Configuration
-from timed import timed_callable
+from weakref import ref
 
 from defusedxml import ElementTree
+
+from model import App, Architecture, Configuration, Core, Graph, Problem, Processor, Task
+
+from timed import timed_callable
 
 
 # FUNCTIONS ###########################################################################################################
@@ -63,17 +64,8 @@ def _import_graph(filepath: Path, arch: Architecture) -> Graph:
 		apps.append(App(app.get("Name"), []))
 
 		tasks = [
-			Task(
-				int(node.get("Id")),
-				ref(apps[-1]),
-				int(node.get("WCET")),
-				int(node.find("Period").get("Value")),
-				int(node.get("Deadline")),
-				int(node.get("EarliestActivation")) if node.get("EarliestActivation") is not None else None,
-				ref(arch[int(node.get("CpuId"))]),
-				Criticality(int(node.get("CIL"))),
-				None
-			) for runnable in app.iter("Runnable") if (node := nodes.get(runnable.get("Name"))) is not None
+			Task(node, apps[-1], arch[int(node.get("CpuId"))])
+			for runnable in app.iter("Runnable") if (node := nodes.get(runnable.get("Name"))) is not None
 		]
 
 		if app.get("Inorder") == "true":

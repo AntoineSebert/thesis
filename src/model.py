@@ -117,15 +117,25 @@ class Task:
 		A list of tasks to be completed before starting.
 	"""
 
-	id: int=field(compare=False)
-	app: ReferenceType[App]=field(compare=False)
-	wcet: int=field(compare=False)
-	period: int=field(compare=False)
-	deadline: int=field(compare=False)
-	offset: Optional[int]=field(compare=False)
-	cpu: ReferenceType[Processor]=field(compare=False)
-	criticality: Criticality=field(compare=False)
-	child: ReferenceType[Task]=field(compare=False)
+	id: int = field(compare=False)
+	app: ReferenceType[App] = field(compare=False)
+	wcet: int = field(compare=False)
+	period: int = field(compare=False)
+	deadline: int = field(compare=False)
+	offset: Optional[int] = field(compare=False)
+	cpu: ReferenceType[Processor] = field(compare=False)
+	criticality: Criticality = field(compare=False)
+	child: ReferenceType[Task] = field(compare=False, default=None)
+
+	def __init__(self: Task, node: ElementTree, app: App, cpu: Processor) -> Task:
+		self.id = int(node.get("Id"))
+		self.app = ref(app)
+		self.wcet = int(node.get("WCET"))
+		self.period = int(node.find("Period").get("Value"))
+		self.deadline = int(node.get("Deadline"))
+		self.offset = int(node.get("EarliestActivation")) if node.get("EarliestActivation") is not None else None
+		self.cpu = ref(cpu)
+		self.criticality = Criticality(int(node.get("CIL")))
 
 
 @dataclass
