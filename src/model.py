@@ -113,6 +113,23 @@ class Slice(NamedTuple):
 	start: int
 	stop: int
 
+	@cached_property
+	def duration(self: Slice) -> int:
+		"""Computes and caches the duration of the slice.
+
+		Parameters
+		----------
+		self : Slice
+			The instance of `Slice`.
+
+		Returns
+		-------
+		int
+			The duration of the slice.
+		"""
+
+		return self.stop - self.start
+
 	def pformat(self: Slice, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
 		ii = i + "\t"
