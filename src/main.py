@@ -32,7 +32,7 @@ from log import ColoredHandler
 
 from model import Configuration, FilepathPair, Problem, Solution
 
-from solver import constraints, policies, solve
+from solver import policies, solve
 
 from tqdm import tqdm
 
@@ -79,7 +79,7 @@ def _create_cli_parser() -> ArgumentParser:
 	Returns
 	-------
 	parser : ArgumentParser
-		An `ArgumentParser` holding the program's CLI.
+		An `ArgumentParser` holding part of the program's CLI.
 	"""
 
 	parser = ArgumentParser(
@@ -100,21 +100,11 @@ def _create_cli_parser() -> ArgumentParser:
 	parser.add_argument(
 		'-p', '--policy',
 		nargs=1,
-		default='rm',
+		default=['rm'],
 		choices=policies.keys(),
 		help="Scheduling policy, either one of " + ', '.join(policies.keys()),
 		metavar="POLICY",
 		dest="policy",
-	)
-	parser.add_argument(
-		'-c', '--constraint',
-		nargs=1,
-		default=1,
-		type=int,
-		choices=list(range(1, len(constraints))),
-		help="Constraint, a number between 1 and " + str(len(constraints)),
-		metavar="CONSTRAINT",
-		dest="constraint",
 	)
 	parser.add_argument(
 		"--verbose",

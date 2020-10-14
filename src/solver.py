@@ -24,12 +24,8 @@ policies: dict[str, Policy] = {
 }
 
 
-constraints: List[Callable[[Problem, Solution], Solution]] = [
-	lambda p, s: s,
-	lambda p, s: s,
-	lambda p, s: s,
-	lambda p, s: s,
-]
+"""Objective functions that assign a score to a feasible solution."""
+objectives: dict[str, Callable[[Solution], float]] = {}
 
 
 # FUNCTIONS ###########################################################################################################
