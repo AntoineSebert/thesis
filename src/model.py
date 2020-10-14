@@ -12,7 +12,7 @@ from functools import cached_property
 from json import JSONEncoder
 from pathlib import Path
 from queue import PriorityQueue
-from typing import Any, Dict, List, NamedTuple, Optional
+from typing import Any, Callable, NamedTuple, Union
 from weakref import ReferenceType, ref
 
 from defusedxml import ElementTree
@@ -63,12 +63,12 @@ class Processor:
 	----------
 	id : int
 		The processor within an `Architecture`.
-	cores : List[Core]
-		The List containing the `Core` objects within the Processor.
+	cores : list[Core]
+		The list containing the `Core` objects within the Processor.
 	"""
 
 	id: int
-	cores: List[Core]
+	cores: list[Core]
 
 	def pformat(self: Processor, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
@@ -79,8 +79,8 @@ class Processor:
 		+ i + "}")
 
 
-"""An List of `Processor` representing an `Architecture`."""
-Architecture = List[Processor]
+"""An list of `Processor` representing an `Architecture`."""
+Architecture = list[Processor]
 
 
 @dataclass
@@ -179,12 +179,12 @@ class App:
 	----------
 	name : str
 		The name of the Application.
-	tasks : List[Task]
+	tasks : list[Task]
 		The list of tasks within the Application.
 	"""
 
 	name: str
-	tasks: List[Task]
+	tasks: list[Task]
 
 	def pformat(self: App, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
@@ -195,10 +195,12 @@ class App:
 				("").join([task.pformat(level + 2) for task in self.tasks])
 			+ i + "\t}"
 		+ i + "}")
+class Graph(NamedTuple):
+	apps: list[App]
 
 
-"""An list of `App` representing an `Graph`."""
-Graph = List[App]
+		return (f"{i}graph {{{i}\thyperperiod : {self.hyperperiod};"
+			+ "".join(app.pformat(level + 1) for app in self.apps) + i + "}")
 
 
 class FilepathPair(NamedTuple):
@@ -259,6 +261,10 @@ class Problem(NamedTuple):
 	graph: Graph
 
 
+"""A mapping of cores to slices, representing the inital mapping."""
+Mapping = dict[ReferenceType[Core], list[ReferenceType[Slice]]]
+
+
 @dataclass
 class Solution:
 	"""A solution holding an hyperperiod as `int`, and an architecture as Architecture (should be: `ref(Architecture)`).
@@ -273,15 +279,15 @@ class Solution:
 		The hyperperiod length for this `Solution`.
 	score : int
 		The score of a Solution regarding an objective function.
-	mapping : Dict[Task, Core]
-		A mapping between tasks and cores.
+	mapping : Mapping
+		A mapping between cores and tasks.
 	"""
 
 	config: Configuration
 	arch: Architecture
 	hyperperiod: int
 	score: int
-	mapping: Dict[ReferenceType[Core], List[ReferenceType[Task]]]
+	mapping: Mapping
 
 
 class PriorityQueueEncoder(JSONEncoder):

@@ -5,7 +5,7 @@
 
 import logging
 from logging import Handler, LogRecord
-from typing import Any, Dict, NoReturn
+from typing import Any, NoReturn
 
 # CLASSES #############################################################################################################
 
@@ -15,7 +15,7 @@ class Singleton(type):
 
 	Attributes
 	----------
-	_instances : Dict[Any, Singleton]
+	_instances : dict[Any, Singleton]
 		Holds subclasses as keys and instances of said subclasses as values.
 
 	Methods
@@ -26,7 +26,7 @@ class Singleton(type):
 
 	_instances = {}
 
-	def __call__(cls: Any, *args: Any, **kwargs: Dict[str, Any]) -> Any:
+	def __call__(cls: Any, *args: Any, **kwargs: dict[str, Any]) -> Any:
 		"""Called when the instance is "called" as a function; if this method is defined, `x(arg1, arg2, ...)`
 		is a shorthand for `x.__call__(arg1, arg2, ...)`.
 
@@ -36,7 +36,7 @@ class Singleton(type):
 			The caller class.
 		args : Tuple[object]
 			A tuple of positional arguments values (default is empty tuple).
-		kwargs : Dict[str, object]
+		kwargs : dict[str, object]
 			A dict of keyword arguments values (default is empty dict).
 
 		Returns
@@ -56,18 +56,18 @@ class ColoredHandler(Handler, metaclass=Singleton):
 
 	Attributes
 	----------
-	_colors : Dict[int, str]
+	_colors : dict[int, str]
 		Holds logging level names as keys and colors as values.
 		(default is { logging.CRITICAL: '\033[91m', logging.ERROR: '\033[91m', logging.WARNING: '\033[93m',
 		logging.INFO: '\033[94m', logging.DEBUG: '\033[92m', })
-	_styles : Dict[str, str]
+	_styles : dict[str, str]
 		Holds strings representing styles as keys and styles as values.
 		(default is { "bold": '\033[1m', "italic": '\033[3m', "underline": '\033[4m', })
 	_reset : str
 		Reset color and style formatting (default is '\033[0m').
 	_verbose : bool
 		Verbose mode (default is False).
-	_formatters : Dict[int, logging.Formatter]
+	_formatters : dict[int, logging.Formatter]
 		Holds logging level values as keys and `Formatter` as values (default is dict()).
 
 	Methods

@@ -22,7 +22,7 @@ from argparse import ArgumentParser
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from time import process_time
-from typing import Callable, List, TypeVar
+from typing import Callable, TypeVar
 
 from builder import build
 
@@ -151,7 +151,7 @@ def _import_files_from_folder(folder_path: Path) -> FilepathPair:
 	return FilepathPair(tsk, cfg)
 
 
-def _get_filepath_pairs(folder_path: Path, recursive: bool = False) -> List[FilepathPair]:
+def _get_filepath_pairs(folder_path: Path, recursive: bool = False) -> list[FilepathPair]:
 	"""Gathers the filepath pairs from a given folder.
 
 	Parameters
@@ -164,7 +164,7 @@ def _get_filepath_pairs(folder_path: Path, recursive: bool = False) -> List[File
 
 	Returns
 	-------
-	filepath_pairs : List[FilepathPair]
+	filepath_pairs : list[FilepathPair]
 		A list of populated `FilepathPair`.
 	"""
 
@@ -189,7 +189,7 @@ INPUT = TypeVar('INPUT', Configuration, Problem, Solution)
 OUTPUT = TypeVar('OUTPUT', Problem, Solution, str)
 
 
-def _solve(config: Configuration, pbar: tqdm, operations: List[Callable[[INPUT], OUTPUT]]) -> str:
+def _solve(config: Configuration, pbar: tqdm, operations: list[Callable[[INPUT], OUTPUT]]) -> str:
 	"""Handles a test case from building to solving and formatting.
 
 	Parameters

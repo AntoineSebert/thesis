@@ -5,7 +5,7 @@
 
 
 from fractions import Fraction
-from typing import Callable, Iterable
+from typing import Callable
 
 from model import Task
 
@@ -32,7 +32,7 @@ process_ratio: Callable[[Task], Fraction] = lambda node: Fraction(node.wcet, nod
 
 Parameters
 ----------
-processes : Iterable[Node]
+processes : list[Node]
 	An iterable of nodes representing tasks.
 
 Returns
@@ -40,7 +40,7 @@ Returns
 Fraction
 	The processor workload, computed from the periods and WCETs of all tasks.
 """
-workload: Callable[[Iterable[Task]], Fraction] = lambda tasks:\
+workload: Callable[[list[Task]], Fraction] = lambda tasks:\
 	sum(process_ratio(node) for node in tasks) if tasks is not None else 0.0
 
 
@@ -63,7 +63,7 @@ sufficient_condition: Callable[[int], Fraction] = lambda count: count * (Fractio
 
 Parameters
 ----------
-tasks : Iterable[Node]
+tasks : list[Node]
 	An iterable of nodes representing periodic tasks.
 
 Returns
@@ -71,4 +71,4 @@ Returns
 bool
 	Returns 'True' if the tasks are schedulable, and 'False' otherise.
 """
-is_schedulable: Callable[[Iterable[Task]], bool] = lambda tasks: workload(tasks) <= sufficient_condition(len(tasks))
+is_schedulable: Callable[[list[Task]], bool] = lambda tasks: workload(tasks) <= sufficient_condition(len(tasks))

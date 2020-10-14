@@ -6,7 +6,6 @@
 
 import logging
 from pathlib import Path
-from typing import List
 from weakref import ref
 
 from defusedxml import ElementTree
@@ -33,7 +32,7 @@ def _import_arch(filepath: Path) -> Architecture:
 		An list of `Processor`.
 	"""
 
-	arch: List[Processor] = []
+	arch: list[Processor] = []
 
 	for cpu in ElementTree.parse(filepath).iter("Cpu"):
 		arch.append(Processor(int(cpu.get("Id")), []))

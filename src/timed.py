@@ -6,7 +6,7 @@
 import logging
 from functools import wraps
 from time import perf_counter
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 import log
 
@@ -34,7 +34,7 @@ def timed_callable(message: str) -> Optional[Any]:
 
 	def callable_decorator(callable: Callable) -> Optional[Any]:
 		@wraps(callable)
-		def timed_wrapper(*args: Any, **kwds: Dict[str, Any]) -> Optional[Any]:
+		def timed_wrapper(*args: Any, **kwds: dict[str, Any]) -> Optional[Any]:
 			result = None
 
 			if 0 < len(message):
