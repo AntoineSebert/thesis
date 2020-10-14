@@ -155,24 +155,16 @@ def _initial_mapping(problem: Problem) -> Solution:
 def pretty_print(solution: Solution, level: int = 0) -> None:
 	i = "\n" + ("\t" * level)
 
-	print("\nsolution {"
+	print("solution {"
 		+ solution.config.pformat(level + 1)
-		+ i + "\tarchitecture {" + ("").join([cpu.pformat(level + 2) for cpu in solution.arch]) + i + "\t}\n"
+		+ i + "\tarchitecture {" + "".join(cpu.pformat(level + 2) for cpu in solution.arch) + i + "\t}\n"
 		+ f"\thyperperiod : {solution.hyperperiod};\n\t"
 		+ f"score : {solution.score};\n\t"
-		+ "mapping {" + "\n\t\t".join([f"{task} : {core};" for task, core in solution.mapping.items()]) + "}\n"
-		+ "}\n")
-
-
-@pretty_print.register
-def _(problem: Problem, level: int = 0) -> None:
-	i = "\n" + ("\t" * level)
-
-	print("\nproblem {\t"
-		+ problem.config.pformat(level + 1)
-		+ i + "\tarchitecture {" + ("").join([cpu.pformat(level + 2) for cpu in problem.arch]) + i + "\t}"
-		+ i + "\tgraph {" + ("").join([app.pformat(level + 2) for app in problem.graph]) + i + "\t}"
-		+ "}\n")
+		+ "mapping {" + "".join(
+			core.pformat(level + 2) + " : "
+			+ "".join(_slice.pformat(level + 3) for _slice in slices) for core, slices in solution.mapping.items()
+		) + i + "\t}\n"
+		+ "}")
 
 
 # ENTRY POINT #########################################################################################################

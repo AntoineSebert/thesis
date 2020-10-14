@@ -86,10 +86,7 @@ class Processor:
 	def pformat(self: Processor, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
 
-		return (i + "cpu {" + i
-		+ f"\tid : {self.id};\n"
-		+ ("\n").join([core.pformat(level + 1) for core in self.cores])
-		+ i + "}")
+		return f"{i}cpu {{{i}\tid : {self.id};" + "".join(core.pformat(level + 1) for core in self.cores) + i + "}"
 
 
 """An list of `Processor` representing an `Architecture`."""
@@ -115,6 +112,16 @@ class Slice(NamedTuple):
 	core: ReferenceType[Core]
 	start: int
 	stop: int
+
+	def pformat(self: Slice, level: int = 0) -> str:
+		i = "\n" + ("\t" * level)
+		ii = i + "\t"
+
+		return (i + "slice {" + ii
+			+ f"task : {self.task().app().name}/{self.task().id};{ii}"
+			f"core : {self.core().processor().id}/{self.core().id};{ii}"
+			f"start : {self.start};{ii}stop : {self.stop};{ii}duration : {self.stop - self.start};{i}"
+		+ "}")
 
 
 @dataclass(order=True)
@@ -254,6 +261,11 @@ class FilepathPair(NamedTuple):
 	tsk: Path
 	cfg: Path
 
+	def pformat(self: FilepathPair, level: int = 0) -> str:
+		i = "\n" + ("\t" * level)
+
+		return f"{i}case {{{i}\ttsk: {self.tsk};{i}\tcfg: {self.cfg};{i}}}"
+
 
 class Configuration(NamedTuple):
 	"""Binds a `FilepathPair` to a constraint level and a scheduling policy. Immutable.
@@ -272,9 +284,7 @@ class Configuration(NamedTuple):
 	def pformat(self: Configuration, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
 
-		return (i + "configuration {" + i
-			+ f"\tcases : {self.filepaths};{i}\tconstraint level : {self.constraint_level};{i}\tpolicy : {self.policy};"
-		+ i + "}")
+		return (i + "configuration {" + self.filepaths.pformat(level + 1) + f"{i}\tpolicy : {self.policy};{i}}}")
 
 
 class Problem(NamedTuple):
@@ -293,6 +303,13 @@ class Problem(NamedTuple):
 	config: Configuration
 	arch: Architecture
 	graph: Graph
+
+	def pformat(self: Problem, level: int = 0) -> str:
+		i = "\n" + ("\t" * level)
+
+		return (i + "\nproblem {" + self.config.pformat(level + 1)
+			+ i + "\tarchitecture {" + "".join(cpu.pformat(level + 2) for cpu in self.arch) + i + "\t}"
+			+ self.graph.pformat(level + 1) + i + "}\n")
 
 
 """A mapping of cores to slices, representing the inital mapping."""
