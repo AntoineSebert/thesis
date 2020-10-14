@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import IntEnum, unique
-from functools import cached_property
+from functools import cached_property, total_ordering
 from json import JSONEncoder
 from pathlib import Path
 from queue import PriorityQueue
@@ -34,8 +34,13 @@ class Criticality(IntEnum):
 	sta_4 = 4
 
 
-class Core(NamedTuple):
-	"""Represents a core. Immutable.
+"""Scheduling policies."""
+Policy = Callable[['Task'], Union[int, float]]  # change to policycheck w/ workload
+
+
+@dataclass
+class Core:
+	"""Represents a core. Mutable, not modified in practice.
 
 	Attributes
 	----------
@@ -51,8 +56,14 @@ class Core(NamedTuple):
 	processor: ReferenceType[Processor]
 	macrotick: int
 
+	def __hash__(self: Core) -> int:
+		return hash(str(self.id) + str(self.processor().id))
+
+	def __eq__(self: Core, other: Core) -> bool:
+		self.id == other.id and self.processor == other.processor
+
 	def pformat(self: Core, level: int = 0) -> str:
-		return ("\t" * level) + f"core {{ id : {self.id}; macrotick : {self.macrotick}; }}"
+		return "\n" + ("\t" * level) + f"core {{ id : {self.id}; macrotick : {self.macrotick}; }}"
 
 
 @dataclass
@@ -83,9 +94,8 @@ class Processor:
 Architecture = list[Processor]
 
 
-@dataclass
-class Slice:
-	"""Named tuple representing an execution slice of a task.
+class Slice(NamedTuple):
+	"""Named tuple representing an execution slice of a task. Immutable.
 
 	Attributes
 	----------
@@ -121,13 +131,9 @@ class Task:
 		The period of the node. Cannot be `0`.
 	deadline : int
 		The deadline of the node.
-	offset : Optional[int]
-		The start offset of the node.
-	cpu : ReferenceType[Processor]
-		A `Processor` the node is scheduled on. Cannot be None.
 	criticality : Criticality
-		The criticality level, [1; 3].
-	child : List[ReferenceType[Task]]
+		The criticality level, [0; 4].
+	child : ReferenceType[Task]
 		A list of tasks to be completed before starting.
 	"""
 
@@ -136,8 +142,6 @@ class Task:
 	wcet: int = field(compare=False)
 	period: int = field(compare=False)
 	deadline: int = field(compare=False)
-	offset: Optional[int] = field(compare=False)
-	cpu: ReferenceType[Processor] = field(compare=False)
 	criticality: Criticality = field(compare=False)
 	child: ReferenceType[Task] = field(compare=False, default=None)
 
@@ -147,8 +151,6 @@ class Task:
 		self.wcet = int(node.get("WCET"))
 		self.period = int(node.find("Period").get("Value"))
 		self.deadline = int(node.get("Deadline"))
-		self.offset = int(node.get("EarliestActivation")) if node.get("EarliestActivation") is not None else None
-		self.cpu = ref(cpu)
 		self.criticality = Criticality(int(node.get("CIL")))
 
 	def pformat(self: Task, level: int = 0) -> str:
@@ -156,21 +158,32 @@ class Task:
 
 		return (i + "task {" + i
 			+ f"\tid : {self.id};{i}"
-			+ f"\tapp : {self.app().name};{i}"
-			+ f"\twcet : {self.wcet};{i}"
-			+ f"\tperiod : {self.period};{i}"
-			+ f"\tdeadline : {self.deadline};{i}"
-			+ (f"\toffset : {self.offset};{i}" if self.offset is not None else "")
-			+ f"\tcpu : {self.cpu().id};{i}"
-			+ f"\tcriticality : {int(self.criticality)};{i}"
-			+ (f"\tchild : {self.child().id};" if self.child is not None else "")
-		+ i + "}")
+			f"\tapp : {self.app().name};{i}"
+			f"\twcet : {self.wcet};{i}"
+			f"\tperiod : {self.period};{i}"
+			f"\tdeadline : {self.deadline};{i}"
+			f"\tcriticality : {int(self.criticality)};{i}"
+			+ (f"\tchild : {self.child().id};{i}}}" if self.child is not None else "}"))
 
 	@cached_property
-	def score(self:Task, policy) -> int:
-		return 0
+	def priority(self: Task, policy: Policy) -> Union[int, float]:
+		"""Computes and caches the priority of the instance depending on the policy.
+
+		Parameters
+		----------
+		self : Task
+			The instance of `Task`.
+
+		Returns
+		-------
+		int
+			The priority of the task.
+		"""
+
+		return policy(self)
 
 
+@total_ordering
 @dataclass
 class App:
 	"""An application. Mutable.
@@ -181,23 +194,45 @@ class App:
 		The name of the Application.
 	tasks : list[Task]
 		The list of tasks within the Application.
+	criticality : Criticality
+		The criticality level, [0; 4], from the first task in `tasks`.
 	"""
 
 	name: str
 	tasks: list[Task]
+	criticality: Criticality
+
+	def __eq__(self: App, other: App) -> bool:
+		return self.criticality == other.criticality
+
+	def __lt__(self: App, other: App) -> bool:
+		return self.criticality < other.criticality
 
 	def pformat(self: App, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
 
 		return (i + "app {" + i
-			+ f"\tname : {self.name};{i}"
-			+ f"\ttasks {{" +
-				("").join([task.pformat(level + 2) for task in self.tasks])
-			+ i + "\t}"
-		+ i + "}")
-class Graph(NamedTuple):
-	apps: list[App]
+		+ f"\tname : {self.name};{i}\tcriticality : {self.criticality};{i}\ttasks {{"
+			+ "".join(task.pformat(level + 2) for task in self.tasks)
+		+ i + "\t}" + i + "}")
 
+
+class Graph(NamedTuple):
+	"""A DAG containing a list of `App` and an hyperperiod.
+
+	Attributes
+	----------
+	apps : list[App]
+		A list of `App`.
+	hyperperiod : int
+		The hyperperiod length for this `Graph`, the least common divisor of the periods of all tasks.
+	"""
+
+	apps: list[App]
+	hyperperiod: int
+
+	def pformat(self: Graph, level: int = 0) -> str:
+		i = "\n" + ("\t" * level)
 
 		return (f"{i}graph {{{i}\thyperperiod : {self.hyperperiod};"
 			+ "".join(app.pformat(level + 1) for app in self.apps) + i + "}")
@@ -225,14 +260,11 @@ class Configuration(NamedTuple):
 	----------
 	filepaths : FilepathPair
 		A `FilepathPair` from which a `Problem` will be generated.
-	constraint_level : int
-		A constraint level that adjust which constraints will be met.
 	policy : str
 		A scheduling policy.
 	"""
 
 	filepaths: FilepathPair
-	constraint_level: int
 	policy: str
 
 	def pformat(self: Configuration, level: int = 0) -> str:

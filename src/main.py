@@ -246,7 +246,7 @@ def main() -> int:
 		tqdm(total=len(filepath_pairs) * len(operations)) as pbar:
 
 		futures = [
-			executor.submit(_solve, Configuration(filepath_pair, args.constraint, args.policy), pbar, operations)
+			executor.submit(_solve, Configuration(filepath_pair, args.policy), pbar, operations)
 			for filepath_pair in filepath_pairs
 		]
 		results = [future.result() for future in as_completed(futures)]

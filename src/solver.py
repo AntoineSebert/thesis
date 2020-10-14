@@ -4,20 +4,22 @@
 # IMPORTS #############################################################################################################
 
 import logging
-from functools import singledispatch
 from itertools import groupby
 from queue import PriorityQueue
-from typing import Callable, Dict, List
+from typing import Callable, Optional
+from weakref import ReferenceType, ref
 
-from model import Architecture, Configuration, Criticality, Graph, Problem, Processor, Solution, Task
+from model import Core, Criticality, Graph, Mapping, Policy, Problem, Slice, Solution, Task
 
 from timed import timed_callable
 
 
+# FUNCTION MAPPINGS ###################################################################################################
+
+
 """Main policy for scheduling, either rate monotonic or earliest deadline first."""
-# make policies functions w/ LRU cache
-policies: Dict[str, Callable[[List[Task]], List[Task]]] = {
-	"edf": lambda task: task.deadline - task.offset,
+policies: dict[str, Policy] = {
+	"edf": lambda task: task.deadline,
 	"rm": lambda task: task.wcet / task.period,
 }
 
@@ -30,42 +32,75 @@ constraints: List[Callable[[Problem, Solution], Solution]] = [
 ]
 
 
-objectives: Dict[str, Callable[[Solution], float]] = []
-
-
 # FUNCTIONS ###########################################################################################################
 
 
-def _create_task_pqueue(config: Configuration, graph: Graph) -> Dict[Criticality, PriorityQueue]:
+def get_core(task: Task, mapping: Mapping) -> Optional[ReferenceType[Core]]:
+	"""Returns the first core a task can be scheduled on.
+
+	Parameters
+	----------
+	task : Task
+		An unscheduled `Task`.
+	mapping : Mapping
+		The current mapping.
+
+	Returns
+	-------
+	Optional[ReferenceType[Core]]
+		An optional reference to a core if one has been found.
+	"""
+
+	for core, slices in mapping.items():
+		if len(slices) == 0:
+			return core
+		elif slices[-1].stop < task.deadline:
+			if task.wcet < (task.deadline - slices[-1].stop):
+				return core
+
+	return None
+
+
+def _create_task_pqueue(policy: Policy, graph: Graph) -> dict[Criticality, PriorityQueue]:
 	"""Creates a leveled priority queue for all tasks in the problem, depending on the criticality level and the
 	scheduling policy.
 
 	Parameters
 	----------
-	problem : Problem
-		A `Problem`.
+	policy: Policy
+		A scheduling policy to sort the tasks.
+	graph: Graph
+		A task graph.
 
 	Returns
 	-------
-	crit_pqueue : PriorityQueue[Task]
+	PriorityQueue[Task]
 		A dictionary of criticality as keys and `PriorityQueue` objects containing tuples of task priority and task as
 		values.
 	"""
 
-	crit_pqueue: Dict[Criticality, PriorityQueue] = {}
-	tasks = [task for app in graph for task in app.tasks]
+	crit_pqueue: dict[Criticality, PriorityQueue] = {}
+	tasks = [task for app in graph.apps for task in app.tasks]
 	key = lambda task: task.criticality
 
 	for criticality, tasks in groupby(sorted(tasks, key=key, reverse=True), key):
 		tasks = list(tasks)
 		crit_pqueue[criticality] = PriorityQueue(maxsize=len(tasks))
 		for task in tasks:
-			crit_pqueue[criticality].put((policies[config.policy](task), task))
+			crit_pqueue[criticality].put((policy(task), task))
 
 	return crit_pqueue
 
 
-def _generate_solution(problem: Problem) -> Solution:
+def _optimization(feasible_solution):
+	return feasible_solution
+
+
+def _initial_scheduling(initial_mapping):
+	return initial_mapping
+
+
+def _initial_mapping(problem: Problem) -> Solution:
 	"""Creates and returns a solution from the relaxed problem.
 
 	Parameters
@@ -79,45 +114,48 @@ def _generate_solution(problem: Problem) -> Solution:
 		A `Solution`.
 	"""
 
-	crit_pqueue: Dict[Criticality, PriorityQueue] = _create_task_pqueue(problem.config, problem.graph)
+	crit_pqueue: dict[Criticality, PriorityQueue] = _create_task_pqueue(policies[problem.config.policy[0]], problem.graph)
+	done: dict[Criticality, list[Task]] = {}
+	mapping: Mapping = {}
 
+	for cpu in problem.arch:
+		for core in cpu.cores:
+			mapping[core] = []
+
+	# foreach level
 	for crit, pqueue in crit_pqueue.items():
+		# foreach task
 		while not pqueue.empty():
-			task = pqueue.get()
-			print(task)
+			priority, task = pqueue.get()
 
-	"""
-	foreach level
-		foreach task
-			get least used core within task cpu
-			if not schedulable
-				if no backtrack possible
-					break highest contraint
-				else backtrack
-			else schedule
-	"""
+			# get least used core within task cpu
+			core = get_core(task, mapping)
 
-	return Solution(problem.config, problem.arch, _hyperperiod_duration(problem.arch), 0, {})
+			# if not schedulable
+			if core is None:
+				# if no backtrack possible
+				if crit == Criticality.sta_4:
+					print("fail")
+				# else backtrack
+				else:
+					print("compute backtrack")
+			# else schedule
+			else:
+				if core in mapping and len(mapping[core]):
+					start = mapping[core][-1].stop
+				else:
+					start = 0
 
+				mapping[core].append(Slice(ref(task), ref(core), start, start + task.wcet))
 
-def _hyperperiod_duration(arch: Architecture) -> int:
-	"""Computes the hyperperiod length for a solution.
+			if crit not in done:
+				done[crit] = []
 
-	Parameters
-	----------
-	arch : Architecture
-		The `Architecture` from a `Solution`.
+			done[crit].append(task)
 
-	Returns
-	-------
-	int
-		The hyperperiod length for the solution.
-	"""
-
-	return 0
+	return Solution(problem.config, problem.arch, problem.graph.hyperperiod, 0, mapping)
 
 
-@singledispatch
 def pretty_print(solution: Solution, level: int = 0) -> None:
 	i = "\n" + ("\t" * level)
 
@@ -159,8 +197,9 @@ def solve(problem: Problem) -> Solution:
 		A solution for the problem.
 	"""
 
-	solution = _generate_solution(problem)
+	initial_solution = _initial_mapping(problem)
+	feasible_solution = _initial_scheduling(initial_solution)
+	extensible_solution = _optimization(feasible_solution)
 	logging.info("Solution found for:\t" + str(problem.config.filepaths))
 
-	pretty_print(problem)
-	pretty_print(solution)  # return solution
+	pretty_print(extensible_solution)  # return solution
