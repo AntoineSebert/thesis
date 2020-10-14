@@ -227,7 +227,7 @@ def main() -> int:
 		raise FileNotFoundError("No matching files found. At least one *.tsk file and one *.cfg file are necessary.")
 
 	logging.info("Files found:\n\t" + "\n\t".join(
-		[filepath_pair.tsk.name + "\t" + filepath_pair.cfg.name for filepath_pair in filepath_pairs]
+		filepath_pair.tsk.name + "\t" + filepath_pair.cfg.name for filepath_pair in filepath_pairs
 	))
 
 	operations = [build, solve, OutputFormat[args.format[0]]]
