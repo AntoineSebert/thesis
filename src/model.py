@@ -22,12 +22,14 @@ from defusedxml import ElementTree
 class Criticality(IntEnum):
 	"""Task criticality level
 
-	sta_1: null
+	dyn_0: null
+	sta_1: minimal E2E delay
 	sta_2: bounded jitter
 	sta_3: 0 jitter
 	sta_4: 0 jitter and minimal completion time
 	"""
 
+	dyn_0 = 0
 	sta_1 = 1
 	sta_2 = 2
 	sta_3 = 3
