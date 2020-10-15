@@ -94,7 +94,7 @@ def _import_graph(filepath: Path, arch: Architecture) -> Graph:
 		apps[-1].criticality = tasks[0].criticality
 		apps[-1].tasks = tasks
 
-	return Graph(apps, _compute_hyperperiod(apps))
+	return Graph(sorted(apps, reverse=True), _compute_hyperperiod(apps))
 
 
 # ENTRY POINT #########################################################################################################
