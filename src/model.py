@@ -40,9 +40,10 @@ class Criticality(IntEnum):
 Policy = Callable[['Task'], Union[int, float]]  # change to policycheck w/ workload
 
 
+@total_ordering
 @dataclass
 class Core:
-	"""Represents a core. Mutable, not modified in practice.
+	"""Represents a core. Mutable to support `weakref`, not modified in practice.
 
 	Attributes
 	----------
@@ -59,7 +60,10 @@ class Core:
 		return hash(str(self.id) + str(self.processor().id))
 
 	def __eq__(self: Core, other: Core) -> bool:
-		self.id == other.id and self.processor == other.processor
+		return self.id == other.id and self.processor == other.processor
+
+	def __lt__(self: Core, other: Core) -> bool:
+		return self.processor().id < other.processor().id and self.id < other.id
 
 	def pformat(self: Core, level: int = 0) -> str:
 		return "\n" + ("\t" * level) + f"core {{ id : {self.id}; processor : {self.processor().id} }}"
@@ -206,8 +210,7 @@ class Task:
 		return policy(self)
 
 
-@total_ordering
-@dataclass
+@dataclass(order=True)
 class App:
 	"""An application. Mutable.
 
@@ -221,15 +224,9 @@ class App:
 		The criticality level, [0; 4], from the first task in `tasks`.
 	"""
 
-	name: str
-	tasks: list[Task]
+	name: str = field(compare=False)
+	tasks: list[Task] = field(compare=False)
 	criticality: Criticality
-
-	def __eq__(self: App, other: App) -> bool:
-		return self.criticality == other.criticality
-
-	def __lt__(self: App, other: App) -> bool:
-		return self.criticality < other.criticality
 
 	def pformat(self: App, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
