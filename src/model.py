@@ -358,6 +358,22 @@ class Solution:
 	mapping: Mapping
 
 
+	def pformat(self: Solution, level: int = 0) -> str:
+		i = "\n" + ("\t" * level)
+
+		return (i + "solution {"
+			+ self.config.pformat(level + 1) + i
+			+ "\tarchitecture {" + "".join(cpu.pformat(level + 2) for cpu in self.arch) + i + "\t}" + i
+			+ f"\thyperperiod : {self.hyperperiod};" + i
+			+ f"\tscore : {self.score};" + i
+			+ "\tmapping {" + "".join(
+				core.pformat(level + 2) + " : {"
+					+ "".join(_slice.pformat(level + 3) for _slice in slices)
+				+ i + "\t\t}" for core, slices in self.mapping.items()
+			) + i + "\t}" + i
+			+ "}")
+
+
 class PriorityQueueEncoder(JSONEncoder):
 	"""An encoder dedicated to parse `PriorityQueue` objects into JSON.
 
