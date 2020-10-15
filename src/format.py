@@ -9,11 +9,11 @@ from functools import partial
 from json import dumps
 from pathlib import Path
 from typing import Any
-from xml.etree.ElementTree import Element, SubElement, fromstringlist, tostring  # noqa:S405
-
-from model import PriorityQueueEncoder, Solution
+from xml.etree.ElementTree import Element, SubElement, fromstringlist, tostring
 
 from defusedxml.minidom import parseString
+
+from model import PriorityQueueEncoder, Solution
 
 from timed import timed_callable
 
@@ -109,13 +109,13 @@ def _svg_format(solution: Solution) -> str:
 	svg = fromstringlist([
 		"<?xml version='1.0' ?>",
 		"<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='100%' height='100%' lang='en' version='1.1'>",
-			f"<title>{title}</title>",  # noqa: E131
+			f"<title>{title}</title>",
 			"<desc>An horizontal chart bar showing the solution to the scheduling problem.</desc>",
 			"<style>",  # https://www.w3.org/TR/SVG2/styling.html
 			"</style>",
 			"<defs>",
-				"<symbol id='cpu' class='cpu'>",  # noqa: E131
-					"<text>CPU</text>",  # noqa: E131
+				"<symbol id='cpu' class='cpu'>",
+					"<text>CPU</text>",
 					"<g class='cores'></g>",
 				"</symbol>",
 				"<symbol id='core' class='core'>",
@@ -138,7 +138,7 @@ def _svg_format(solution: Solution) -> str:
 			"<rect fill='url(#background)' x='0' y='0' width='100%' height='100%' />",
 			f"<text x='30%' y='10%'>{title}</text>",
 			"<g>",
-				"".join(f"<use id='cpu_{cpu.id}' xlink:href='#cpu' x='5%' y='{i * (15 * len(cpu.cores))}'>" + str(cpu.id) + "</use>" for i, cpu in enumerate(solution.arch)),
+				"".join(f"<use id='cpu_{cpu.id}' xlink:href='#cpu' x='5%' y='{i * (15 * len(cpu.cores))}'>{cpu.id}</use>" for i, cpu in enumerate(solution.arch)),
 			"</g>",
 		"</svg>",
 	])

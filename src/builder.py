@@ -56,7 +56,7 @@ def _compute_hyperperiod(apps: list[App]) -> int:
 		The hyperperiod length for the solution.
 	"""
 
-	periods = list(set([task.period for app in apps for task in app.tasks]))
+	periods = list(set(task.period for app in apps for task in app.tasks))
 
 	return lcm(*periods)
 
