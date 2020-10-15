@@ -107,6 +107,15 @@ def _create_cli_parser() -> ArgumentParser:
 		dest="policy",
 	)
 	parser.add_argument(
+		'-s', '--switch-time',
+		nargs=1,
+		default=10,
+		type=int,
+		help="Partition switch time.",
+		metavar="SWITCH_TIME",
+		dest="switch_time",
+	)
+	parser.add_argument(
 		"--verbose",
 		action="store_true",
 		help="Toggle program verbosity.",
@@ -179,7 +188,7 @@ INPUT = TypeVar('INPUT', Configuration, Problem, Solution)
 OUTPUT = TypeVar('OUTPUT', Problem, Solution, str)
 
 
-def _solve(config: Configuration, pbar: tqdm, operations: list[Callable[[INPUT], OUTPUT]]) -> str:
+def _wrapper(config: Configuration, pbar: tqdm, operations: list[Callable[[INPUT], OUTPUT]]) -> str:
 	"""Handles a test case from building to solving and formatting.
 
 	Parameters
@@ -236,7 +245,7 @@ def main() -> int:
 		tqdm(total=len(filepath_pairs) * len(operations)) as pbar:
 
 		futures = [
-			executor.submit(_solve, Configuration(filepath_pair, args.policy), pbar, operations)
+			executor.submit(_wrapper, Configuration(filepath_pair, args.policy, args.switch_time), pbar, operations)
 			for filepath_pair in filepath_pairs
 		]
 		results = [future.result() for future in as_completed(futures)]

@@ -173,6 +173,7 @@ def solve(problem: Problem) -> Solution:
 	initial_solution = _initial_mapping(problem)
 	feasible_solution = _initial_scheduling(initial_solution)
 	extensible_solution = _optimization(feasible_solution)
+
 	logging.info("Solution found for:\t" + str(problem.config.filepaths))
 
 	print(extensible_solution.pformat())  # return solution

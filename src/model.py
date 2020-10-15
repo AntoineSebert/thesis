@@ -287,15 +287,21 @@ class Configuration(NamedTuple):
 		A `FilepathPair` from which a `Problem` will be generated.
 	policy : str
 		A scheduling policy.
+	switch_time : int
+		A partition switch time.
 	"""
 
 	filepaths: FilepathPair
 	policy: str
+	switch_time: int
 
 	def pformat(self: Configuration, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
 
-		return (i + "configuration {" + self.filepaths.pformat(level + 1) + f"{i}\tpolicy : {self.policy};{i}}}")
+		return (i + "configuration {"
+			+ self.filepaths.pformat(level + 1)
+			+ f"{i}\tpolicy : {self.policy};"
+			+ f"{i}\tswitch_time : {self.switch_time};{i}}}")
 
 
 class Problem(NamedTuple):
