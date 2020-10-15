@@ -50,13 +50,10 @@ class Core:
 		The core id within a `Processor`.
 	processor : ReferenceType[Processor]
 		The processor this core belongs to.
-	macrotick : int
-		The macrotick of the core.
 	"""
 
 	id: int
 	processor: ReferenceType[Processor]
-	macrotick: int
 
 	def __hash__(self: Core) -> int:
 		return hash(str(self.id) + str(self.processor().id))
@@ -65,7 +62,7 @@ class Core:
 		self.id == other.id and self.processor == other.processor
 
 	def pformat(self: Core, level: int = 0) -> str:
-		return "\n" + ("\t" * level) + f"core {{ id : {self.id}; macrotick : {self.macrotick}; }}"
+		return "\n" + ("\t" * level) + f"core {{ id : {self.id}; processor : {self.processor().id} }}"
 
 
 @dataclass

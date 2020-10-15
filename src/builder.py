@@ -37,7 +37,7 @@ def _import_arch(filepath: Path) -> Architecture:
 
 	for cpu in ElementTree.parse(filepath).iter("Cpu"):
 		arch.append(Processor(int(cpu.get("Id")), []))
-		arch[-1].cores = [Core(int(core.get("Id")), ref(arch[-1]), int(core.get("MacroTick"))) for core in cpu]
+		arch[-1].cores = [Core(int(core.get("Id")), ref(arch[-1])) for core in cpu]
 
 	return arch
 
