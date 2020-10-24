@@ -5,7 +5,7 @@
 
 import logging
 from logging import Handler, LogRecord
-from typing import Any, NoReturn
+from typing import Any
 
 # CLASSES #############################################################################################################
 
@@ -24,7 +24,7 @@ class Singleton(type):
 		Creates the instance if it does not yet exists and returns it.
 	"""
 
-	_instances = {}
+	_instances: dict = {}
 
 	def __call__(cls: Any, *args: Any, **kwargs: dict[str, Any]) -> Any:
 		"""Called when the instance is "called" as a function; if this method is defined, `x(arg1, arg2, ...)`
@@ -92,9 +92,9 @@ class ColoredHandler(Handler, metaclass=Singleton):
 	}
 	_reset = '\033[0m'
 	_verbose = False
-	_formatters = {}
+	_formatters: dict = {}
 
-	def __init__(self: Singleton, verbose: bool = False) -> NoReturn:
+	def __init__(self: "ColoredHandler", verbose: bool = False) -> None:
 		"""Called after the instance has been created (by `__new__()`), but before it is returned to the caller.
 		The arguments are those passed to the class constructor expression.
 		If a base class has an `__init__()` method, the derived class’s `__init__()` method, if any,
@@ -109,12 +109,12 @@ class ColoredHandler(Handler, metaclass=Singleton):
 
 		Handler.__init__(self)
 		logging.getLogger().setLevel(0)
-		__class__._verbose = verbose
-		__class__._formatters = {key: logging.Formatter(
-			fmt=value + '[%(asctime)s][%(levelname)s]: %(message)s' + __class__._reset, datefmt='%H:%M:%S',
-		) for key, value in __class__._colors.items()}
+		self._verbose = verbose
+		self._formatters = {key: logging.Formatter(
+			fmt=value + '[%(asctime)s][%(levelname)s]: %(message)s' + self._reset, datefmt='%H:%M:%S',
+		) for key, value in self._colors.items()}
 
-	def emit(self: Singleton, record: LogRecord) -> NoReturn:
+	def emit(self: "ColoredHandler", record: LogRecord) -> None:
 		"""Formats and prints a `LoggerRecord` parameter, depending on the verbosity.
 
 		Parameters
@@ -123,5 +123,5 @@ class ColoredHandler(Handler, metaclass=Singleton):
 			A record to format and print.
 		"""
 
-		if __class__._verbose or 30 < record.levelno:
-			print(__class__._formatters[record.levelno].format(record))
+		if self._verbose or 30 < record.levelno:
+			print(self._formatters[record.levelno].format(record))
