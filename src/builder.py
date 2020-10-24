@@ -9,9 +9,9 @@ from math import lcm
 from pathlib import Path
 from weakref import ref
 
-from defusedxml import ElementTree
+from defusedxml import ElementTree  # type: ignore
 
-from model import App, Architecture, Configuration, Core, Criticality, Graph, Problem, Processor, Task
+from model import App, Architecture, Configuration, Core, Graph, Problem, Processor, Task
 
 from timed import timed_callable
 
@@ -30,10 +30,10 @@ def _import_arch(filepath: Path) -> Architecture:
 	Returns
 	-------
 	Architecture
-		An list of `Processor`.
+		An set of `Processor`.
 	"""
 
-	arch: list[Processor] = []
+	arch: set[Processor] = []
 
 	for cpu in ElementTree.parse(filepath).iter("Cpu"):
 		arch.append(Processor(int(cpu.get("Id")), []))
@@ -43,20 +43,20 @@ def _import_arch(filepath: Path) -> Architecture:
 
 
 def _compute_hyperperiod(apps: list[App]) -> int:
-	"""Computes the hyperperiod length for a solution.
+	"""Computes the hyperperiod.
 
 	Parameters
 	----------
-	arch : Architecture
-		The `Architecture` from a `Solution`.
+	apps : list[App]
+		Applications to compute a hyperperiod for.
 
 	Returns
 	-------
 	int
-		The hyperperiod length for the solution.
+		The hyperperiod for the apps.
 	"""
 
-	periods = list(set(task.period for app in apps for task in app.tasks))
+	periods = {task.period for app in apps for task in app}
 
 	return lcm(*periods)
 
@@ -80,19 +80,16 @@ def _import_graph(filepath: Path, arch: Architecture) -> Graph:
 	apps: list[App] = []
 
 	for app in et.iter("Application"):
-		apps.append(App(app.get("Name"), [], Criticality.dyn_0))
+		apps.append(App(app.get("Name"), []))
 
-		tasks = [
+		apps[-1].tasks = [
 			Task(node, apps[-1], arch[int(node.get("CpuId"))])
 			for runnable in app.iter("Runnable") if (node := nodes.get(runnable.get("Name"))) is not None
 		]
 
 		if app.get("Inorder") == "true":
-			for i, task in enumerate(tasks[1:]):
-				task.child = ref(tasks[i - 1])
-
-		apps[-1].criticality = tasks[0].criticality
-		apps[-1].tasks = tasks
+			for i, task in enumerate(apps[-1].tasks[1:]):
+				task.child = ref(apps[-1].tasks[i - 1])
 
 	return Graph(sorted(apps, reverse=True), _compute_hyperperiod(apps))
 

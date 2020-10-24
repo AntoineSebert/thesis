@@ -13,37 +13,6 @@ from model import Task
 # FUNCTIONS ###########################################################################################################
 
 
-"""Determine the workload ratio for a node.
-
-Parameters
-----------
-node : Node
-	A node representing a task.
-
-Returns
--------
-Fraction
-	The processor workload for the task.
-"""
-process_ratio: Callable[[Task], Fraction] = lambda node: Fraction(node.wcet, node.period)
-
-
-"""Determine the workload load carried by an iterable of nodes.
-
-Parameters
-----------
-processes : list[Node]
-	An iterable of nodes representing tasks.
-
-Returns
--------
-Fraction
-	The processor workload, computed from the periods and WCETs of all tasks.
-"""
-workload: Callable[[list[Task]], Fraction] = lambda tasks:\
-	sum(process_ratio(node) for node in tasks) if tasks is not None else 0.0
-
-
 """Determine the sufficient condition for schedulability of a count of tasks.
 
 Parameters

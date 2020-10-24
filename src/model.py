@@ -6,16 +6,16 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterable, Set, Reversible
 from dataclasses import dataclass, field
 from enum import IntEnum, unique
 from functools import cached_property, total_ordering
-from json import JSONEncoder
+from math import fsum
 from pathlib import Path
-from queue import PriorityQueue
-from typing import Any, Callable, NamedTuple, Union
+from typing import Callable, NamedTuple, Optional, TypeVar, Union, Iterator
 from weakref import ReferenceType, ref
 
-from defusedxml import ElementTree
+from defusedxml import ElementTree  # type: ignore
 
 
 @unique
@@ -37,7 +37,54 @@ class Criticality(IntEnum):
 
 
 """Scheduling policies."""
-Policy = Callable[['Task'], Union[int, float]]  # change to policycheck w/ workload
+Policy = Callable[[Optional[int]], float]
+
+
+"""Main policy for scheduling, either rate monotonic or earliest deadline first."""
+policies: dict[str, Policy] = {
+	"edf": lambda _: 1,
+	"rm": lambda count: count * (2**(1 / count) - 1),
+}
+
+
+"""Objective functions that assign a score to a feasible solution."""
+ObjectiveFunction = Callable[['Solution'], Union[int, float]]
+
+
+"""Objectives and descriptions.
+min end-to-end app delay :	- cumulative
+							- normal distribution
+free space :	- cumulative
+				- normal distribution
+"""
+objectives = {
+	"min_e2e": (
+		"minimal end-to-end application delay",
+		{
+			"cmltd": (
+				"cumulated; lower is better",
+				lambda s: s,
+			),
+			"nrml": (
+				"normal distribution; lower is better",
+				lambda s: s,
+			)
+		}
+	),
+	"max_empty": (
+		"maximal empty space",
+		{
+			"cmltd": (
+				"cumulated; lower is better",
+				lambda s: s,
+			),
+			"nrml": (
+				"normal distribution; lower is better",
+				lambda s: s,
+			)
+		}
+	),
+}
 
 
 @total_ordering
@@ -57,9 +104,11 @@ class Core:
 	processor: ReferenceType[Processor]
 
 	def __hash__(self: Core) -> int:
-		return hash(str(self.id) + str(self.processor().id))
+		return hash(str(self.id) + str(self.processor))
 
-	def __eq__(self: Core, other: Core) -> bool:
+	def __eq__(self: Core, other: object) -> bool:
+		if not isinstance(other, Core):
+			return NotImplemented
 		return self.id == other.id and self.processor == other.processor
 
 	def __lt__(self: Core, other: Core) -> bool:
@@ -70,28 +119,51 @@ class Core:
 
 
 @dataclass
-class Processor:
+class Processor(AsyncIterable, Set, Reversible):
 	"""Represents a processor. Mutable.
 
 	Attributes
 	----------
 	id : int
 		The processor within an `Architecture`.
-	cores : list[Core]
-		The list containing the `Core` objects within the Processor.
+	cores : set[Core]
+		The set containing the `Core` objects within the Processor.
 	"""
 
 	id: int
-	cores: list[Core]
+	cores: set[Core]
+
+	def __aiter__(self: Processor):
+		return self
+
+	def __contains__(self: Processor, item: Core) -> bool:
+		if item.processor is self:
+			for core in self:
+				if item.id == core.id:
+					return True
+		return False
+
+	def __iter__(self: Processor) -> Iterator[Processor]:
+		return iter(self.cores)
+
+	def __reversed__(self: Processor) -> Iterator[Processor]:
+		for core in self.cores[::-1]:
+			yield core
+
+	def __len__(self: Processor) -> int:
+		return len(self.cores)
+
+	def __hash__(self: Processor) -> int:
+		return hash(str(self.id))
 
 	def pformat(self: Processor, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
 
-		return f"{i}cpu {{{i}\tid : {self.id};" + "".join(core.pformat(level + 1) for core in self.cores) + i + "}"
+		return f"{i}cpu {{{i}\tid : {self.id};" + "".join(core.pformat(level + 1) for core in self) + i + "}"
 
 
-"""An list of `Processor` representing an `Architecture`."""
-Architecture = list[Processor]
+"""An set of `Processor` representing an `Architecture`."""
+Architecture = set[Processor]
 
 
 class Slice(NamedTuple):
@@ -170,9 +242,9 @@ class Task:
 	period: int = field(compare=False)
 	deadline: int = field(compare=False)
 	criticality: Criticality = field(compare=False)
-	child: ReferenceType[Task] = field(compare=False, default=None)
+	child: ReferenceType[Task] = field(compare=False)
 
-	def __init__(self: Task, node: ElementTree, app: App, cpu: Processor) -> Task:
+	def __init__(self: Task, node: ElementTree, app: App, cpu: Processor) -> None:
 		self.id = int(node.get("Id"))
 		self.app = ref(app)
 		self.wcet = int(node.get("WCET"))
@@ -193,8 +265,8 @@ class Task:
 			+ (f"\tchild : {self.child().id};{i}}}" if self.child is not None else "}"))
 
 	@cached_property
-	def priority(self: Task, policy: Policy) -> Union[int, float]:
-		"""Computes and caches the priority of the instance depending on the policy.
+	def workload(self: Task) -> float:
+		"""Computes and caches the workload of the instance.
 
 		Parameters
 		----------
@@ -203,53 +275,112 @@ class Task:
 
 		Returns
 		-------
-		int
-			The priority of the task.
+		float
+			The workload of the task.
 		"""
 
-		return policy(self)
+		return self.wcet / self.period
 
 
 @dataclass(order=True)
-class App:
+class App(AsyncIterable, Set, Reversible):
 	"""An application. Mutable.
 
 	Attributes
 	----------
 	name : str
 		The name of the Application.
-	tasks : list[Task]
-		The list of tasks within the Application.
+	tasks : set[Task]
+		The tasks within the Application.
 	criticality : Criticality
 		The criticality level, [0; 4], from the first task in `tasks`.
 	"""
 
 	name: str = field(compare=False)
-	tasks: list[Task] = field(compare=False)
-	criticality: Criticality
+	tasks: set[Task] = field(compare=False)
+
+	@cached_property
+	def criticality(self: App) -> Criticality:
+		"""Computes and caches the maximal criticality within the tasks.
+
+		Parameters
+		----------
+		self
+			The instance of `App`.
+
+		Returns
+		-------
+		Criticality
+			The maximal criticality within `self.tasks`, assuming a non-empty list of tasks.
+		"""
+
+		return max(self.tasks, key=lambda task: task.criticality).criticality
+
+	def workload(self: App) -> float:
+		return fsum(task.workload for task in self.tasks)
+
+	def __aiter__(self: Processor):
+		return self
+
+	def __contains__(self: App, item: Task) -> bool:
+		if item.app is self:
+			for task in self:
+				if item.id == task.id:
+					return True
+		return False
+
+	def __iter__(self: App) -> Iterator[App]:
+		return iter(self.tasks)
+
+	def __reversed__(self: App) -> Iterator[App]:
+		for task in self.tasks[::-1]:
+			yield task
+
+	def __len__(self: App) -> int:
+		return len(self.tasks)
+
+	def __hash__(self: App) -> int:
+		return hash(self.name)
 
 	def pformat(self: App, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
 
 		return (i + "app {" + i
 		+ f"\tname : {self.name};{i}\tcriticality : {self.criticality};{i}\ttasks {{"
-			+ "".join(task.pformat(level + 2) for task in self.tasks)
+			+ "".join(task.pformat(level + 2) for task in self)
 		+ i + "\t}" + i + "}")
 
 
 class Graph(NamedTuple):
-	"""A DAG containing a list of `App` and an hyperperiod.
+	"""A DAG containing apps and an hyperperiod.
 
 	Attributes
 	----------
 	apps : list[App]
-		A list of `App`.
+		The applications to schedule.
 	hyperperiod : int
 		The hyperperiod length for this `Graph`, the least common divisor of the periods of all tasks.
 	"""
 
 	apps: list[App]
 	hyperperiod: int
+
+	@cached_property
+	def max_criticality(self: Graph) -> Criticality:
+		"""Computes and caches the maximal criticality within the apps.
+
+		Parameters
+		----------
+		self
+			The instance of `Graph`.
+
+		Returns
+		-------
+		Criticality
+			The maximal criticality within `self.apps`, assuming a non-empty list of applications.
+		"""
+
+		return max(self.apps, key=lambda app: app.criticality).criticality
 
 	def pformat(self: Graph, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
@@ -275,7 +406,10 @@ class FilepathPair(NamedTuple):
 	def pformat(self: FilepathPair, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
 
-		return f"{i}case {{{i}\ttsk: {self.tsk};{i}\tcfg: {self.cfg};{i}}}"
+		return f"{i}case {{{i}\ttsk: {str(self.tsk)};{i}\tcfg: {str(self.cfg)};{i}}}"
+
+
+CONFIG_JSON = TypeVar('CONFIG_JSON', FilepathPair, int, str)
 
 
 class Configuration(NamedTuple):
@@ -294,6 +428,17 @@ class Configuration(NamedTuple):
 	filepaths: FilepathPair
 	policy: str
 	switch_time: int
+	# objective: str
+
+	def json(self: Configuration) -> dict[str, CONFIG_JSON]:
+		return {
+			"case": {
+				"tsk": str(self.filepaths.tsk),
+				"cfg": str(self.filepaths.cfg),
+			},
+			"policy": self.policy,
+			"switch time": self.switch_time,
+		}
 
 	def pformat(self: Configuration, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
@@ -305,7 +450,7 @@ class Configuration(NamedTuple):
 
 
 class Problem(NamedTuple):
-	"""A problem holding a `FilepathPair`, a `Graph`, an architecture.
+	"""A problem holding a `FilepathPair`, an architecture and a `Graph`.
 
 	Attributes
 	----------
@@ -341,8 +486,6 @@ class Solution:
 	----------
 	config: Configuration
 		A configuration for a scheduling problem.
-	arch : Architecture
-		An `Architecture` containing a sequence of `Processor`.
 	hyperperiod : int
 		The hyperperiod length for this `Solution`.
 	score : int
@@ -352,39 +495,20 @@ class Solution:
 	"""
 
 	config: Configuration
-	arch: Architecture
 	hyperperiod: int
 	score: int
 	mapping: Mapping
-
 
 	def pformat(self: Solution, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
 
 		return (i + "solution {"
 			+ self.config.pformat(level + 1) + i
-			+ "\tarchitecture {" + "".join(cpu.pformat(level + 2) for cpu in self.arch) + i + "\t}" + i
 			+ f"\thyperperiod : {self.hyperperiod};" + i
 			+ f"\tscore : {self.score};" + i
 			+ "\tmapping {" + "".join(
-				core.pformat(level + 2) + " : {"
-					+ "".join(_slice.pformat(level + 3) for _slice in slices)
+				core().pformat(level + 2) + " : {"
+					+ "".join(_slice().pformat(level + 3) for _slice in slices)
 				+ i + "\t\t}" for core, slices in self.mapping.items()
 			) + i + "\t}" + i
 			+ "}")
-
-
-class PriorityQueueEncoder(JSONEncoder):
-	"""An encoder dedicated to parse `PriorityQueue` objects into JSON.
-
-	Methods
-	-------
-	default(obj)
-		Returns a list containing the size of the `PriorityQueue` and a boolean whether it is empty or not.
-	"""
-
-	def default(self: JSONEncoder, obj: Any) -> Any:
-		if isinstance(obj, PriorityQueue):
-			return [obj.qsize(), obj.empty()]
-		# Let the base class default method raise the TypeError
-		return JSONEncoder.default(self, obj)

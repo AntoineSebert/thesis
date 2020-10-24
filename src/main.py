@@ -30,11 +30,11 @@ from format import OutputFormat
 
 from log import ColoredHandler
 
-from model import Configuration, FilepathPair, Problem, Solution
+from model import Configuration, FilepathPair, Problem, Solution, objectives, policies
 
-from solver import policies, solve
+from solver import solve
 
-from tqdm import tqdm
+from tqdm import tqdm  # type: ignore
 
 
 # FUNCTIONS ###########################################################################################################
@@ -93,16 +93,26 @@ def _create_cli_parser() -> ArgumentParser:
 		nargs=1,
 		default=['raw'],
 		choices=[member.name for member in OutputFormat],
-		help="Output format, either one of " + ', '.join(member.name for member in OutputFormat),
+		help="Output format, either one of: " + ', '.join(member.name for member in OutputFormat),
 		metavar="FORMAT",
 		dest="format",
+	)
+	parser.add_argument(
+		'-o', '--objective',
+		nargs=1,
+		default="",
+		choices=[f"{abbr}-{abbr2}" for abbr, val in objectives.items() for abbr2 in val[1].keys()],
+		help="Objective function to evaluate solutions, either one of: "
+		+ ', '.join(f"{abbr}-{abbr2} ({val[0]}, {val2[0]})" for abbr, val in objectives.items() for abbr2, val2 in val[1].items()),
+		metavar="OBJECTIVE",
+		dest="objective",
 	)
 	parser.add_argument(
 		'-p', '--policy',
 		nargs=1,
 		default=['rm'],
 		choices=policies.keys(),
-		help="Scheduling policy, either one of " + ', '.join(policies.keys()),
+		help="Scheduling policy, either one of: " + ', '.join(policies.keys()),
 		metavar="POLICY",
 		dest="policy",
 	)
@@ -245,7 +255,7 @@ def main() -> int:
 		tqdm(total=len(filepath_pairs) * len(operations)) as pbar:
 
 		futures = [
-			executor.submit(_wrapper, Configuration(filepath_pair, args.policy, args.switch_time), pbar, operations)
+			executor.submit(_wrapper, Configuration(filepath_pair, args.policy[0], args.switch_time), pbar, operations)
 			for filepath_pair in filepath_pairs
 		]
 		results = [future.result() for future in as_completed(futures)]

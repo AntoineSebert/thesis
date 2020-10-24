@@ -5,27 +5,14 @@
 
 import logging
 from itertools import groupby
+from math import fsum
 from queue import PriorityQueue
 from typing import Callable, Optional
 from weakref import ReferenceType, ref
 
-from model import Core, Criticality, Graph, Mapping, Policy, Problem, Slice, Solution, Task
+from model import App, Core, Criticality, Graph, Mapping, Policy, policies, Problem, Processor, Slice, Solution, Task
 
 from timed import timed_callable
-
-
-# FUNCTION MAPPINGS ###################################################################################################
-
-
-"""Main policy for scheduling, either rate monotonic or earliest deadline first."""
-policies: dict[str, Policy] = {
-	"edf": lambda task: task.deadline,
-	"rm": lambda task: task.wcet / task.period,
-}
-
-
-"""Objective functions that assign a score to a feasible solution."""
-objectives: dict[str, Callable[[Solution], float]] = {}
 
 
 # FUNCTIONS ###########################################################################################################
@@ -50,8 +37,8 @@ def get_core(task: Task, mapping: Mapping) -> Optional[ReferenceType[Core]]:
 	for core, slices in mapping.items():
 		if len(slices) == 0:
 			return core
-		elif slices[-1].stop < task.deadline:
-			if task.wcet < (task.deadline - slices[-1].stop):
+		elif slices[-1]().stop < task.deadline:
+			if task.wcet < (task.deadline - slices[-1]().stop):
 				return core
 
 	return None
@@ -76,7 +63,7 @@ def _create_task_pqueue(policy: Policy, graph: Graph) -> dict[Criticality, Prior
 	"""
 
 	crit_pqueue: dict[Criticality, PriorityQueue] = {}
-	tasks = [task for app in graph.apps for task in app.tasks]
+	tasks = [task for app in graph.apps for task in app]
 	key = lambda task: task.criticality
 
 	for criticality, tasks in groupby(sorted(tasks, key=key, reverse=True), key):
@@ -88,34 +75,18 @@ def _create_task_pqueue(policy: Policy, graph: Graph) -> dict[Criticality, Prior
 	return crit_pqueue
 
 
-def _optimization(feasible_solution):
-	return feasible_solution
+def _optimization(problem: Problem, feasible_solution) -> Solution:
+	return Solution(problem.config, problem.graph.hyperperiod, 0, {})
 
 
 def _initial_scheduling(initial_mapping):
-	return initial_mapping
-
-
-def _initial_mapping(problem: Problem) -> Solution:
-	"""Creates and returns a solution from the relaxed problem.
-
-	Parameters
-	----------
-	problem : Problem
-		A `Problem`.
-
-	Returns
-	-------
-	Solution
-		A `Solution`.
 	"""
-
 	crit_pqueue: dict[Criticality, PriorityQueue] = _create_task_pqueue(policies[problem.config.policy[0]], problem.graph)
 	done: dict[Criticality, list[Task]] = {}
 	mapping: Mapping = {}
 
 	for cpu in problem.arch:
-		for core in cpu.cores:
+		for core in cpu:
 			mapping[core] = []
 
 	# foreach level
@@ -148,8 +119,52 @@ def _initial_mapping(problem: Problem) -> Solution:
 				done[crit] = []
 
 			done[crit].append(task)
+	"""
 
-	return Solution(problem.config, problem.arch, problem.graph.hyperperiod, 0, mapping)
+	return initial_mapping
+
+
+def _try_map(initial_mapping: Mapping, app: App, policy: Policy) -> bool:
+
+	for cpu, apps in initial_mapping.items():
+		if len(apps) == 0:
+			initial_mapping[cpu].add(ref(app))
+			return True
+		else:
+			workload: float = app.workload() + fsum(_app().workload() for _app in apps)
+			sc = policy(len(app) + sum(len(_app()) for _app in apps)) * len(cpu())
+			print(str(workload) + ":" + str(sc))
+			if workload <= sc:
+				initial_mapping[cpu].add(ref(app))
+				return True
+
+	print("nope")
+	return False
+
+
+def _initial_mapping(problem: Problem) -> Mapping:
+	"""Creates and returns a solution from the relaxed problem.
+
+	Parameters
+	----------
+	problem : Problem
+		A `Problem`.
+
+	Returns
+	-------
+	Solution
+		A `Solution`.
+	"""
+
+	initial_mapping: dict[ReferenceType[Processor], set[ReferenceType[App]]] = {
+		ref(cpu): set() for cpu in problem.arch
+	}
+
+	for app in problem.graph.apps:
+		if not _try_map(initial_mapping, app, policies[problem.config.policy]):
+			pass  # throw(unschedulable)
+
+	return initial_mapping
 
 
 # ENTRY POINT #########################################################################################################
@@ -170,10 +185,10 @@ def solve(problem: Problem) -> Solution:
 		A solution for the problem.
 	"""
 
-	initial_solution = _initial_mapping(problem)
-	feasible_solution = _initial_scheduling(initial_solution)
-	extensible_solution = _optimization(feasible_solution)
+	initial_map = _initial_mapping(problem)
+	feasible_solution = _initial_scheduling(initial_map)
+	extensible_solution = _optimization(problem, feasible_solution)
 
 	logging.info("Solution found for:\t" + str(problem.config.filepaths))
 
-	print(extensible_solution.pformat())  # return solution
+	return extensible_solution
