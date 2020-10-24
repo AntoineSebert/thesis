@@ -6,16 +6,42 @@
 
 from enum import Enum, unique
 from functools import partial
-from json import dumps
-from pathlib import Path
+from json import JSONEncoder, dumps
+from queue import PriorityQueue
 from typing import Any
-from xml.etree.ElementTree import Element, SubElement, fromstringlist, tostring
+from xml.etree.ElementTree import Element, SubElement, dump, fromstringlist, indent, tostring
 
-from defusedxml.minidom import parseString
-
-from model import PriorityQueueEncoder, Solution
+from model import Path, Slice, Solution
 
 from timed import timed_callable
+
+
+# CLASSES #############################################################################################################
+
+
+class SolutionEncoder(JSONEncoder):
+	"""An encoder dedicated to parse `Solution` objects into JSON.
+
+	Methods
+	-------
+	default(obj)
+		The JSON representation of the `Solution`.
+	"""
+
+	def default(self: JSONEncoder, obj: Any) -> Any:
+		if isinstance(obj, PriorityQueue):
+			return [obj.qsize(), obj.empty()]
+		elif isinstance(obj, Solution):
+			return {"schedule": {
+				"configuration": obj.config.json(),
+				"hyperperiod": obj.hyperperiod,
+				"score": obj.score,
+				"mapping": obj.mapping,
+			}}
+		elif isinstance(obj, Path):
+			return str(obj)
+
+		return JSONEncoder.default(self, obj)  # Let the base class default method raise the TypeError
 
 
 # FUNCTIONS ###########################################################################################################
@@ -35,13 +61,26 @@ def _json_format(solution: Solution) -> str:
 	str
 		A `str` representing a JSON `Solution`.
 	"""
+	print(dumps(solution, skipkeys=True, sort_keys=True, indent=4, cls=SolutionEncoder))
 
-	return dumps(solution, skipkeys=True, sort_keys=True, indent=4, cls=PriorityQueueEncoder)
+	return dumps(solution, skipkeys=True, sort_keys=True, indent=4, cls=SolutionEncoder)
 
 
 @timed_callable("Formatting the solutions to XML...")
 def _xml_format(solution: Solution) -> str:
 	"""Formats a solution into a custom XML schema.
+	<scheduling>
+		<config policy="" switch-time=0 objective="">
+			<files tsk="" tsk="" />
+		</config>
+		<mapping hyperperoid=0 score=0>
+			<cpu id=0>
+				<core id=0>
+					<slice start=0 stop=0 duration=0 app=0 task=0 />
+				</core>
+			</cpu>
+		</mapping>
+	</scheduling>
 
 	Parameters
 	----------
@@ -54,19 +93,48 @@ def _xml_format(solution: Solution) -> str:
 		A `str` representing a XML `Solution`.
 	"""
 
-	tables = Element("Tables")
-	for cpu in solution.arch:
-		for core in cpu.cores:
-			schedule = SubElement(tables, "Schedule", {"CpuId": str(cpu.id), "CoreId": str(core.id)})
-			schedule.extend([
-				Element("Slice", {
-					"TaskId": str(_slice.task_id),
-					"Start": str(_slice.start),
-					"Duration": str(_slice.end - _slice.start),
-				}) for _slice in core.slices
+	scheduling = Element("scheduling")
+	config = SubElement(scheduling, "configuration", {
+		"policy": solution.config.policy,
+		"switch-time": str(solution.config.switch_time),
+		"objective": "0",  # solution.config.objective,
+	})
+	config.append(Element("files", {
+		"tsk": str(solution.config.filepaths.tsk),
+		"cfg": str(solution.config.filepaths.cfg),
+	}))
+
+	mapping = SubElement(scheduling, "mapping", {
+		"hyperperiod": str(solution.hyperperiod),
+		"score": str(solution.score),
+	})
+
+	cpus: dict[int, dict[int, list[Slice]]] = {}
+
+	for core, slices in solution.mapping.items():
+		if core().processor().id in cpus:
+			cpus[core().processor().id][core().id] = slices
+		else:
+			cpus[core().processor().id] = {core().id: slices}
+
+	for cpu_id, cores in cpus.items():
+		cpu = SubElement(mapping, "processor", {"id": f"cpu-{cpu_id}"})
+		for core_id, slices in cores.items():
+			core = SubElement(cpu, "core", {"id": f"core-{core_id}"})
+			core.extend([
+				Element("slice", {
+					"start": str(_slice.start),
+					"stop": str(_slice.stop),
+					"duration": str(_slice.stop - _slice.start),
+					"app": _slice.task().app().name,
+					"task": str(_slice.task().id),
+				}) for _slice in slices
 			])
 
-	return parseString(tostring(tables)).toprettyxml()
+	indent(scheduling, space="\t")
+	dump(scheduling)
+
+	return tostring(scheduling, encoding="unicode", xml_declaration=True)
 
 
 @timed_callable("Formatting the solution to a raw string representation...")
@@ -102,12 +170,9 @@ def _svg_format(solution: Solution) -> str:
 		A `str` representing a SVG `Solution`.
 	"""
 
-	title = "Solution for " + (
-		str(solution.filepaths.tsk.parts[-2]) if 0 < len(solution.filepaths.tsk.parts) else str(Path.cwd())
-	)
+	title = "Solution for " + str(solution.config.filepaths.tsk)
 
 	svg = fromstringlist([
-		"<?xml version='1.0' ?>",
 		"<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='100%' height='100%' lang='en' version='1.1'>",
 			f"<title>{title}</title>",
 			"<desc>An horizontal chart bar showing the solution to the scheduling problem.</desc>",
@@ -137,18 +202,11 @@ def _svg_format(solution: Solution) -> str:
 			"</defs>",
 			"<rect fill='url(#background)' x='0' y='0' width='100%' height='100%' />",
 			f"<text x='30%' y='10%'>{title}</text>",
-			"<g>",
-				"".join(f"<use id='cpu_{cpu.id}' xlink:href='#cpu' x='5%' y='{i * (15 * len(cpu.cores))}'>{cpu.id}</use>" for i, cpu in enumerate(solution.arch)),
-			"</g>",
+			"<g></g>",
 		"</svg>",
 	])
 
-	for cpu in solution.arch:
-		Element("use", {"id": str(cpu.id)})
-		for core in cpu.cores:
-			Element("use", {"id": str(core.id)})
-
-	return tostring(svg)
+	return tostring(svg, encoding="unicode", xml_declaration=True)
 
 
 # CLASSES #############################################################################################################
