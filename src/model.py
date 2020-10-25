@@ -6,13 +6,13 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterable, Set, Reversible
+from collections.abc import AsyncIterable, AsyncIterator, Iterator, Reversible, Set
 from dataclasses import dataclass, field
 from enum import IntEnum, unique
 from functools import cached_property, total_ordering
 from math import fsum
 from pathlib import Path
-from typing import Callable, NamedTuple, Optional, TypeVar, Union, Iterator
+from typing import Callable, NamedTuple, TypeVar, Union
 from weakref import ReferenceType, ref
 
 from defusedxml import ElementTree  # type: ignore
@@ -36,12 +36,16 @@ class Criticality(IntEnum):
 	sta_4 = 4
 
 
-"""Scheduling policies."""
-Policy = Callable[[Optional[int]], float]
+SCHED_CHECK = TypeVar('SCHED_CHECK', None, int)
 
 
-"""Main policy for scheduling, either rate monotonic or earliest deadline first."""
-policies: dict[str, Policy] = {
+"""Scheduling check, returns the sufficient condition."""
+# Callable[[set[Task]], bool] = lambda tasks: workload(tasks) <= sufficient_condition(len(tasks))
+SchedCheck = Callable[[SCHED_CHECK], float]  # TODO: update to work with worload from list of tasks instead
+
+
+"""Policy for scheduling, containing the sufficient condition, an ordering function."""
+policies: dict[str, SchedCheck] = {
 	"edf": lambda _: 1,
 	"rm": lambda count: count * (2**(1 / count) - 1),
 }
@@ -51,12 +55,7 @@ policies: dict[str, Policy] = {
 ObjectiveFunction = Callable[['Solution'], Union[int, float]]
 
 
-"""Objectives and descriptions.
-min end-to-end app delay :	- cumulative
-							- normal distribution
-free space :	- cumulative
-				- normal distribution
-"""
+"""Objectives and descriptions."""
 objectives = {
 	"min_e2e": (
 		"minimal end-to-end application delay",
@@ -68,8 +67,8 @@ objectives = {
 			"nrml": (
 				"normal distribution; lower is better",
 				lambda s: s,
-			)
-		}
+			),
+		},
 	),
 	"max_empty": (
 		"maximal empty space",
@@ -81,8 +80,8 @@ objectives = {
 			"nrml": (
 				"normal distribution; lower is better",
 				lambda s: s,
-			)
-		}
+			),
+		},
 	),
 }
 
@@ -133,7 +132,7 @@ class Processor(AsyncIterable, Set, Reversible):
 	id: int
 	cores: set[Core]
 
-	def __aiter__(self: Processor):
+	def __aiter__(self: Processor) -> AsyncIterator[Processor]:
 		return self
 
 	def __contains__(self: Processor, item: Core) -> bool:
@@ -264,6 +263,9 @@ class Task:
 			f"\tcriticality : {int(self.criticality)};{i}"
 			+ (f"\tchild : {self.child().id};{i}}}" if self.child is not None else "}"))
 
+	def __hash__(self: Task) -> int:
+		return hash(str(self.id) + self.app().name)
+
 	@cached_property
 	def workload(self: Task) -> float:
 		"""Computes and caches the workload of the instance.
@@ -292,8 +294,6 @@ class App(AsyncIterable, Set, Reversible):
 		The name of the Application.
 	tasks : set[Task]
 		The tasks within the Application.
-	criticality : Criticality
-		The criticality level, [0; 4], from the first task in `tasks`.
 	"""
 
 	name: str = field(compare=False)
@@ -301,7 +301,8 @@ class App(AsyncIterable, Set, Reversible):
 
 	@cached_property
 	def criticality(self: App) -> Criticality:
-		"""Computes and caches the maximal criticality within the tasks.
+		"""Computes and caches the maximal criticality, [0; 4], within the tasks.
+		We could also just return it from the first task in `tasks`.
 
 		Parameters
 		----------
@@ -316,10 +317,24 @@ class App(AsyncIterable, Set, Reversible):
 
 		return max(self.tasks, key=lambda task: task.criticality).criticality
 
+	@cached_property
 	def workload(self: App) -> float:
+		"""Computes and caches the workload of the tasks.
+
+		Parameters
+		----------
+		self : App
+			The instance of `App`.
+
+		Returns
+		-------
+		float
+			The workload of the app.
+		"""
+
 		return fsum(task.workload for task in self.tasks)
 
-	def __aiter__(self: Processor):
+	def __aiter__(self: Processor) -> AsyncIterator[App]:
 		return self
 
 	def __contains__(self: App, item: Task) -> bool:
@@ -476,6 +491,12 @@ class Problem(NamedTuple):
 
 """A mapping of cores to slices, representing the inital mapping."""
 Mapping = dict[ReferenceType[Core], list[ReferenceType[Slice]]]
+
+"""A mapping of cores as keys, to a tuple of tasks and a workload as values."""
+CoreTaskMap = dict[ReferenceType[Core], tuple[set[ReferenceType[Task]], float]]
+
+"""A mapping of cores to slices, representing the inital mapping."""
+ProcAppMap = dict[ReferenceType[Processor], tuple[set[ReferenceType[App]], CoreTaskMap]]
 
 
 @dataclass

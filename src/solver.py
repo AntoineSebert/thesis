@@ -4,13 +4,10 @@
 # IMPORTS #############################################################################################################
 
 import logging
-from itertools import groupby
-from math import fsum
 from queue import PriorityQueue
-from typing import Callable, Optional
-from weakref import ReferenceType, ref
+from weakref import ref
 
-from model import App, Core, Criticality, Graph, Mapping, Policy, policies, Problem, Processor, Slice, Solution, Task
+from model import App, CoreTaskMap, Criticality, Graph, Problem, ProcAppMap, SchedCheck, Solution, policies
 
 from timed import timed_callable
 
@@ -18,33 +15,7 @@ from timed import timed_callable
 # FUNCTIONS ###########################################################################################################
 
 
-def get_core(task: Task, mapping: Mapping) -> Optional[ReferenceType[Core]]:
-	"""Returns the first core a task can be scheduled on.
-
-	Parameters
-	----------
-	task : Task
-		An unscheduled `Task`.
-	mapping : Mapping
-		The current mapping.
-
-	Returns
-	-------
-	Optional[ReferenceType[Core]]
-		An optional reference to a core if one has been found.
-	"""
-
-	for core, slices in mapping.items():
-		if len(slices) == 0:
-			return core
-		elif slices[-1]().stop < task.deadline:
-			if task.wcet < (task.deadline - slices[-1]().stop):
-				return core
-
-	return None
-
-
-def _create_task_pqueue(policy: Policy, graph: Graph) -> dict[Criticality, PriorityQueue]:
+def _create_task_pqueue(sched_check: SchedCheck, graph: Graph) -> dict[Criticality, PriorityQueue]:
 	"""Creates a leveled priority queue for all tasks in the problem, depending on the criticality level and the
 	scheduling policy.
 
@@ -64,14 +35,13 @@ def _create_task_pqueue(policy: Policy, graph: Graph) -> dict[Criticality, Prior
 
 	crit_pqueue: dict[Criticality, PriorityQueue] = {}
 	tasks = [task for app in graph.apps for task in app]
-	key = lambda task: task.criticality
-
+	"""
 	for criticality, tasks in groupby(sorted(tasks, key=key, reverse=True), key):
 		tasks = list(tasks)
 		crit_pqueue[criticality] = PriorityQueue(maxsize=len(tasks))
 		for task in tasks:
 			crit_pqueue[criticality].put((policy(task), task))
-
+	"""
 	return crit_pqueue
 
 
@@ -124,25 +94,71 @@ def _initial_scheduling(initial_mapping):
 	return initial_mapping
 
 
-def _try_map(initial_mapping: Mapping, app: App, policy: Policy) -> bool:
+def _map(core_tasks: CoreTaskMap, app: App, sched_check: SchedCheck) -> bool:
+	"""Tries to map the tasks of an application to the cores of a processor.
 
-	for cpu, apps in initial_mapping.items():
-		if len(apps) == 0:
-			initial_mapping[cpu].add(ref(app))
+	Parameters
+	----------
+	core_tasks : CoreTaskMap
+		A mapping of cores to tasks.
+	app : App
+		An application to map.
+	sched_check : SchedCheck
+		A scheduling check.
+
+	Returns
+	-------
+	bool
+		Returns `True` if the application have been mapped, or `False` otherwise.
+	"""
+
+	mapped_tasks: int = 0
+
+	for task in app.tasks:
+		for core, (tasks, core_workload) in core_tasks.items():
+			# left-to-right conditional evaluation
+			if len(tasks) == 0 or (core_workload + task.workload) < sched_check(len(tasks) + 1):
+				tasks.add(ref(task))
+				core_tasks[core] = (tasks, core_workload + task.workload)
+
+				mapped_tasks += 1
+				break
+
+	return len(app.tasks) == mapped_tasks
+
+
+def _try_map(initial_mapping: ProcAppMap, app: App, sched_check: SchedCheck) -> bool:
+	"""Tries to map an application to a processor.
+
+	Parameters
+	----------
+	initial_mapping : ProcAppMap
+		A mapping of processors to applications.
+	app : App
+		An application to map.
+	sched_check : SchedCheck
+		A scheduling check.
+
+	Returns
+	-------
+	bool
+		Returns `True` if the application have been mapped, or `False` otherwise.
+	"""
+
+	# transform strategy for mapping : spread instead stack
+	for cpu, (apps, core_tasks) in initial_mapping.items():
+		buffer_mapping: CoreTaskMap = core_tasks.copy()
+
+		if _map(buffer_mapping, app, sched_check):
+			apps.add(ref(app))
+			initial_mapping[cpu] = (apps, buffer_mapping)
+
 			return True
-		else:
-			workload: float = app.workload() + fsum(_app().workload() for _app in apps)
-			sc = policy(len(app) + sum(len(_app()) for _app in apps)) * len(cpu())
-			print(str(workload) + ":" + str(sc))
-			if workload <= sc:
-				initial_mapping[cpu].add(ref(app))
-				return True
 
-	print("nope")
 	return False
 
 
-def _initial_mapping(problem: Problem) -> Mapping:
+def _initial_mapping(problem: Problem) -> ProcAppMap:
 	"""Creates and returns a solution from the relaxed problem.
 
 	Parameters
@@ -152,17 +168,17 @@ def _initial_mapping(problem: Problem) -> Mapping:
 
 	Returns
 	-------
-	Solution
-		A `Solution`.
+	ProcAppMap
+		A mapping of the initial basis for the problem solving.
 	"""
 
-	initial_mapping: dict[ReferenceType[Processor], set[ReferenceType[App]]] = {
-		ref(cpu): set() for cpu in problem.arch
+	initial_mapping: ProcAppMap = {
+		ref(cpu): (set(), {ref(core): (set(), 0.0) for core in cpu.cores}) for cpu in problem.arch
 	}
 
 	for app in problem.graph.apps:
 		if not _try_map(initial_mapping, app, policies[problem.config.policy]):
-			pass  # throw(unschedulable)
+			raise f"Initial mapping failed with app : '{app.name}'"
 
 	return initial_mapping
 
