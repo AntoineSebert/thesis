@@ -260,7 +260,7 @@ def main() -> int:
 		]
 		results = [future.result() for future in as_completed(futures)]
 
-		logging.info("Total ellasped time: " + str(process_time()) + "s.")
+		logging.info(f"Total ellasped time: {process_time()}s.")
 
 		exit(results)
 

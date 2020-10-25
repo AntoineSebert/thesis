@@ -9,7 +9,7 @@ from functools import partial
 from json import JSONEncoder, dumps
 from queue import PriorityQueue
 from typing import Any
-from xml.etree.ElementTree import Element, SubElement, dump, fromstringlist, indent, tostring
+from xml.etree.ElementTree import Element, SubElement, dump, fromstringlist, indent, register_namespace, tostring
 
 from model import Path, Slice, Solution
 
@@ -170,6 +170,8 @@ def _svg_format(solution: Solution) -> str:
 		A `str` representing a SVG `Solution`.
 	"""
 
+	register_namespace("", "http://www.w3.org/2000/svg")
+
 	title = "Solution for " + str(solution.config.filepaths.tsk)
 
 	svg = fromstringlist([
@@ -206,7 +208,7 @@ def _svg_format(solution: Solution) -> str:
 		"</svg>",
 	])
 
-	return tostring(svg, encoding="unicode", xml_declaration=True)
+	return tostring(svg, encoding="unicode")
 
 
 # CLASSES #############################################################################################################
