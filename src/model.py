@@ -103,16 +103,13 @@ class Slice(NamedTuple):
 		The task the slice belongs to.
 	core : Core
 		The core the slice is scheduled on.
-	start : int
-		The start time of the slice.
-	stop : int
-		The stop time of the slice.
+	et : slice
+		The slice of execution time.
 	"""
 
 	task: Task
 	core: Core
-	start: int
-	stop: int
+	et: slice
 
 	@cached_property
 	def duration(self: Slice) -> int:
@@ -129,7 +126,10 @@ class Slice(NamedTuple):
 			The duration of the slice.
 		"""
 
-		return self.stop - self.start
+		return self.et.stop - self.et.start
+
+	def __hash__(self: Processor) -> int:
+		return hash(str(hash(self.task)) + str(hash(self.core)) + str(self.et.start) + str(self.et.stop))
 
 	def pformat(self: Slice, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
@@ -138,7 +138,7 @@ class Slice(NamedTuple):
 		return (f"{i}slice {{{ii}"
 			f"task : {self.task.app().name} / {self.task.id};{ii}"
 			f"core : {self.core.processor.id} / {self.core.id};{ii}"
-			f"slice : {self.et} / {ii}duration : {self.et.stop - self.et.start};{i}}}")
+			f"slice : {self.et} / {self.duration};{i}}}")
 
 
 class FilepathPair(NamedTuple):
