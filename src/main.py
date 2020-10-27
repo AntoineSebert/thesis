@@ -161,7 +161,7 @@ def _import_files_from_folder(folder_path: Path) -> FilepathPair:
 	return FilepathPair(tsk, cfg)
 
 
-def _get_filepath_pairs(folder_path: Path, recursive: bool = False) -> list[FilepathPair]:
+def _get_filepath_pairs(folder_path: Path, recursive: bool = False) -> set[FilepathPair]:
 	"""Gathers the filepath pairs from a given folder.
 
 	Parameters
@@ -174,21 +174,21 @@ def _get_filepath_pairs(folder_path: Path, recursive: bool = False) -> list[File
 
 	Returns
 	-------
-	filepath_pairs : list[FilepathPair]
-		A list of populated `FilepathPair`.
+	filepath_pairs : set[FilepathPair]
+		A set of populated `FilepathPair`.
 	"""
 
-	filepath_pairs = []
+	filepath_pairs: set[FilepathPair] = set()
 
 	try:
-		filepath_pairs = [_import_files_from_folder(folder_path)]
+		filepath_pairs.add(_import_files_from_folder(folder_path))
 	except StopIteration:
 		pass
 
 	if recursive:
 		for subfolder in filter(lambda e: e.is_dir(), folder_path.iterdir()):
 			try:
-				filepath_pairs += [filepath for filepath in _get_filepath_pairs(subfolder, True) if filepath]
+				filepath_pairs |= {filepath for filepath in _get_filepath_pairs(subfolder, True) if filepath}
 			except StopIteration:
 				pass
 
