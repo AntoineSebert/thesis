@@ -29,12 +29,12 @@ class Core:
 	----------
 	id : int
 		The core id within a `Processor`.
-	processor : ReferenceType[Processor]
+	processor : Processor
 		The processor this core belongs to.
 	"""
 
 	id: int
-	processor: ReferenceType[Processor]
+	processor: Processor
 
 	def __hash__(self: Core) -> int:
 		return hash(str(self.id) + str(self.processor))
@@ -42,13 +42,13 @@ class Core:
 	def __eq__(self: Core, other: object) -> bool:
 		if not isinstance(other, Core):
 			return NotImplemented
-		return self.id == other.id and self.processor == other.processor
+		return self.id == other.id and self.processor is other.processor
 
 	def __lt__(self: Core, other: Core) -> bool:
-		return self.processor().id < other.processor().id and self.id < other.id
+		return self.processor.id < other.processor.id and self.id < other.id
 
 	def pformat(self: Core, level: int = 0) -> str:
-		return "\n" + ("\t" * level) + f"core {{ id : {self.id}; processor : {self.processor().id} }}"
+		return "\n" + ("\t" * level) + f"core {{ id : {self.id}; processor : {self.processor.id} }}"
 
 
 @dataclass
