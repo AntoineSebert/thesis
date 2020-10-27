@@ -33,13 +33,13 @@ def _import_arch(filepath: Path) -> Architecture:
 		An set of `Processor`.
 	"""
 
-	arch: set[Processor] = []
+	arch: list[Processor] = []
 
 	for cpu in ElementTree.parse(filepath).iter("Cpu"):
-		arch.append(Processor(int(cpu.get("Id")), []))
-		arch[-1].cores = [Core(int(core.get("Id")), ref(arch[-1])) for core in cpu]
+		arch.append(Processor(int(cpu.get("Id")), set()))
+		arch[-1].cores = {Core(int(core.get("Id")), arch[-1]) for core in cpu}
 
-	return arch
+	return set(arch)
 
 
 def _compute_hyperperiod(apps: list[App]) -> int:
@@ -80,10 +80,10 @@ def _import_graph(filepath: Path, arch: Architecture) -> Graph:
 	apps: list[App] = []
 
 	for app in et.iter("Application"):
-		apps.append(App(app.get("Name"), []))
+		apps.append(App(app.get("Name"), set()))
 
 		apps[-1].tasks = [
-			Task(node, apps[-1], arch[int(node.get("CpuId"))])
+			Task(node, apps[-1])
 			for runnable in app.iter("Runnable") if (node := nodes.get(runnable.get("Name"))) is not None
 		]
 
@@ -91,7 +91,7 @@ def _import_graph(filepath: Path, arch: Architecture) -> Graph:
 			for i, task in enumerate(apps[-1].tasks[1:]):
 				task.child = ref(apps[-1].tasks[i - 1])
 
-	return Graph(sorted(apps, reverse=True), _compute_hyperperiod(apps))
+	return Graph(sorted(set(apps), reverse=True), _compute_hyperperiod(apps))
 
 
 # ENTRY POINT #########################################################################################################
