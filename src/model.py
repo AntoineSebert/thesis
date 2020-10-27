@@ -52,7 +52,7 @@ class Core:
 
 
 @dataclass
-class Processor(AsyncIterable, Set, Reversible):
+class Processor(Set, Reversible):
 	"""Represents a processor. Mutable.
 
 	Attributes
@@ -66,12 +66,9 @@ class Processor(AsyncIterable, Set, Reversible):
 	id: int
 	cores: set[Core]
 
-	def __aiter__(self: Processor) -> AsyncIterator[Processor]:
-		return self
-
-	def __contains__(self: Processor, item: Core) -> bool:
+	def __contains__(self: Processor, item: object) -> bool:
 		if item.processor is self:
-			for core in self:
+			for core in self.cores:
 				if item.id == core.id:
 					return True
 		return False
