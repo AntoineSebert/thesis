@@ -4,12 +4,79 @@
 # IMPORTS #############################################################################################################
 
 import logging
-from queue import PriorityQueue
-from weakref import ref
+from typing import Callable, TypeVar, Union
+from weakref import ReferenceType, ref
 
-from model import App, CoreTaskMap, Criticality, Graph, Problem, ProcAppMap, SchedCheck, Solution, policies
+from graph_model import App, Task
+
+from model import Core, Mapping, Problem, Processor, Slice, Solution
 
 from timed import timed_callable
+
+
+# SOLVING DICTS AND TYPE ALIASES ######################################################################################
+
+
+SCHED_CHECK = TypeVar('SCHED_CHECK', None, int)
+
+
+"""Scheduling check, returns the sufficient condition."""
+# Callable[[set[Task]], bool] = lambda tasks: workload(tasks) <= sufficient_condition(len(tasks))
+SchedCheck = Callable[[SCHED_CHECK], float]  # TODO: update to work with worload from list of tasks instead
+
+
+"""Policy for scheduling, containing the sufficient condition, an ordering function."""
+policies: dict[str, SchedCheck] = {
+	"edf": lambda _: 1,
+	"rm": lambda count: count * (2**(1 / count) - 1),
+}
+
+
+"""Objective functions that assign a score to a feasible solution."""
+ObjectiveFunction = Callable[['Solution'], Union[int, float]]
+
+
+"""Objectives and descriptions."""
+objectives = {
+	"min_e2e": (
+		"minimal end-to-end application delay",
+		{
+			"cmltd": (
+				"cumulated; lower is better",
+				lambda s: s,
+			),
+			"nrml": (
+				"normal distribution; lower is better",
+				lambda s: s,
+			),
+		},
+	),
+	"max_empty": (
+		"maximal empty space",
+		{
+			"cmltd": (
+				"cumulated; lower is better",
+				lambda s: s,
+			),
+			"nrml": (
+				"normal distribution; lower is better",
+				lambda s: s,
+			),
+		},
+	),
+}
+
+"""A mapping of cores as keys, to a tuple of tasks and a workload as values."""
+CoreTaskMap = dict[ReferenceType[Core], tuple[set[ReferenceType[Task]], float]]
+
+"""A mapping of cores to slices, representing the inital mapping."""
+ProcAppMap = dict[ReferenceType[Processor], tuple[set[ReferenceType[App]], CoreTaskMap]]
+
+"""..."""
+CoreSlotMap = dict[ReferenceType[Core], dict[ReferenceType[Task], list[slice]]]
+
+"""..."""
+CoreSliceMap = dict[ReferenceType[Core], dict[ReferenceType[Task], list[Slice]]]
 
 
 # FUNCTIONS ###########################################################################################################

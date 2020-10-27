@@ -11,7 +11,9 @@ from weakref import ref
 
 from defusedxml import ElementTree  # type: ignore
 
-from model import App, Architecture, Configuration, Core, Graph, Problem, Processor, Task
+from graph_model import App, Graph, Task
+
+from model import Architecture, Configuration, Core, Problem, Processor
 
 from timed import timed_callable
 

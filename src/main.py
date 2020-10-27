@@ -8,10 +8,6 @@ Resources
 Static analysis
 	tests :			https://github.com/pytest-dev/pytest
 	type checking :	https://github.com/python/mypy
-Runtime analysis
-	https://github.com/nedbat/coveragepy
-	https://github.com/agermanidis/livepython
-	https://github.com/benfred/py-spy
 """
 
 # IMPORTS #############################################################################################################
@@ -30,9 +26,9 @@ from format import OutputFormat
 
 from log import ColoredHandler
 
-from model import Configuration, FilepathPair, Problem, Solution, objectives, policies
+from model import Configuration, FilepathPair, Problem, Solution
 
-from solver import solve
+from solver import objectives, policies, solve
 
 from tqdm import tqdm  # type: ignore
 
