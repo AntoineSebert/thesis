@@ -181,7 +181,7 @@ def _map(core_tasks: CoreTaskMap, app: App, sched_check: SchedCheck) -> bool:
 
 	mapped_tasks: int = 0
 
-	for task in app.tasks:
+	for task in app:
 		for core, (tasks, core_workload) in core_tasks.items():
 			# left-to-right conditional evaluation
 			if len(tasks) == 0 or (core_workload + task.workload) < sched_check(len(tasks) + 1):
@@ -240,12 +240,12 @@ def _initial_mapping(problem: Problem) -> ProcAppMap:
 	"""
 
 	initial_mapping: ProcAppMap = {
-		ref(cpu): (set(), {ref(core): (set(), 0.0) for core in cpu.cores}) for cpu in problem.arch
+		ref(cpu): (set(), {ref(core): (set(), 0.0) for core in cpu}) for cpu in problem.arch
 	}
 
 	for app in problem.graph.apps:
 		if not _try_map(initial_mapping, app, policies[problem.config.policy]):
-			raise f"Initial mapping failed with app : '{app.name}'"
+			raise RuntimeError(f"Initial mapping failed with app : '{app.name}'")
 
 	return initial_mapping
 
