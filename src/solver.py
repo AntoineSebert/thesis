@@ -233,9 +233,21 @@ def _initial_mapping(problem: Problem) -> ProcAppMap:
 		cpu: (set(), {core: (set(), 0.0) for core in cpu}) for cpu in problem.arch
 	}
 
+	sched_check, _ = policies[problem.config.policy]
+
 	for app in problem.graph.apps:
-		if not _try_map(initial_mapping, app, policies[problem.config.policy]):
+		if not _try_map(initial_mapping, app, sched_check):
 			raise RuntimeError(f"Initial mapping failed with app : '{app.name}'")
+
+	"""
+	for core, crit_tasks in core_slot_map.items():
+		print(core.pformat())
+		for crit, task_slots in crit_tasks.items():
+			print("\t" + str(crit))
+			for task, slots in task_slots.items():
+				print("\t\t" + task.app.name + "/" + str(task.id))
+				print('\t\t\t' + '\n\t\t\t'.join(str(slot) for slot in slots))
+	"""
 
 	return initial_mapping
 
