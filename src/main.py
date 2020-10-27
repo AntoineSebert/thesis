@@ -103,7 +103,8 @@ def _create_cli_parser() -> ArgumentParser:
 		default="",
 		choices=[f"{abbr}-{abbr2}" for abbr, val in objectives.items() for abbr2 in val[1].keys()],
 		help="Objective function to evaluate solutions, either one of: "
-		+ ', '.join(f"{abbr}-{abbr2} ({val[0]}, {val2[0]})" for abbr, val in objectives.items() for abbr2, val2 in val[1].items()),
+		+ ', '.join(f"{abbr}-{abbr2} ({val[0]}, {val2[0]})"
+			for abbr, val in objectives.items() for abbr2, val2 in val[1].items()),
 		metavar="OBJECTIVE",
 		dest="objective",
 	)
@@ -255,7 +256,12 @@ def main() -> int:
 		tqdm(total=len(filepath_pairs) * len(operations)) as pbar:
 
 		futures = [
-			executor.submit(_wrapper, Configuration(filepath_pair, args.policy[0], args.switch_time), pbar, operations)
+			executor.submit(
+				_wrapper,
+				Configuration(filepath_pair, args.policy[0], args.switch_time, args.objective),
+				pbar,
+				operations,
+			)
 			for filepath_pair in filepath_pairs
 		]
 		results = [future.result() for future in as_completed(futures)]
