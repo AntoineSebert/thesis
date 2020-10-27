@@ -177,12 +177,14 @@ class Configuration(NamedTuple):
 		A scheduling policy.
 	switch_time : int
 		A partition switch time.
+	objective : str
+		An objective function for the optimization step.
 	"""
 
 	filepaths: FilepathPair
 	policy: str
 	switch_time: int
-	# objective: str
+	objective: str
 
 	def json(self: Configuration) -> dict[str, CONFIG_JSON]:
 		return {

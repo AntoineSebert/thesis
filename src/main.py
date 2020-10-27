@@ -97,6 +97,7 @@ def _create_cli_parser() -> ArgumentParser:
 		'-o', '--objective',
 		nargs=1,
 		default="",
+		type=str,
 		choices=[f"{abbr}-{abbr2}" for abbr, val in objectives.items() for abbr2 in val[1].keys()],
 		help="Objective function to evaluate solutions, either one of: "
 		+ ', '.join(f"{abbr}-{abbr2} ({val[0]}, {val2[0]})"
