@@ -82,50 +82,32 @@ CoreSliceMap = dict[ReferenceType[Core], dict[ReferenceType[Task], list[Slice]]]
 # FUNCTIONS ###########################################################################################################
 
 
-def _create_task_pqueue(sched_check: SchedCheck, graph: Graph) -> dict[Criticality, PriorityQueue]:
-	"""Creates a leveled priority queue for all tasks in the problem, depending on the criticality level and the
-	scheduling policy.
-
-	Parameters
-	----------
-	policy: Policy
-		A scheduling policy to sort the tasks.
-	graph: Graph
-		A task graph.
-
-	Returns
-	-------
-	PriorityQueue[Task]
-		A dictionary of criticality as keys and `PriorityQueue` objects containing tuples of task priority and task as
-		values.
-	"""
-
-	crit_pqueue: dict[Criticality, PriorityQueue] = {}
-	tasks = [task for app in graph.apps for task in app]
-	"""
-	for criticality, tasks in groupby(sorted(tasks, key=key, reverse=True), key):
-		tasks = list(tasks)
-		crit_pqueue[criticality] = PriorityQueue(maxsize=len(tasks))
-		for task in tasks:
-			crit_pqueue[criticality].put((policy(task), task))
-	"""
-	return crit_pqueue
-
-
-def _optimization(problem: Problem, feasible_solution) -> Solution:
+def _optimization(problem: Problem, feasible_solution: dict) -> Solution:
 	return Solution(problem.config, problem.graph.hyperperiod, 0, {})
 
 
-def _initial_scheduling(initial_mapping):
+def _feasible_scheduling(initial_solution: Mapping) -> Mapping:
+	pass
+
+
+def _get_slots(core: Core, task: Task, hyperperiod: int) -> list[slice]:
+	return [slice(i * task.period, (i * task.period) + task.wcet) for i in range(int(hyperperiod / task.period))]
+
+
+def _create_task_slots(initial_mapping: ProcAppMap, hyperperiod: int) -> CoreSlotMap:
+	core_slot_map: CoreSlotMap = {}
+
+	for _cpu, (_apps, core_tasks) in initial_mapping.items():
+		for core, (tasks, _core_workload) in core_tasks.items():
+			core_slot_map[core] = {task: _get_slots(core(), task(), hyperperiod) for task in tasks}
+
+	return core_slot_map
+
+
+def _initial_scheduling(initial_mapping: ProcAppMap, hyperperiod: int) -> Mapping:
+	core_slot_map: CoreSlotMap = _create_task_slots(initial_mapping, hyperperiod)
+
 	"""
-	crit_pqueue: dict[Criticality, PriorityQueue] = _create_task_pqueue(policies[problem.config.policy[0]], problem.graph)
-	done: dict[Criticality, list[Task]] = {}
-	mapping: Mapping = {}
-
-	for cpu in problem.arch:
-		for core in cpu:
-			mapping[core] = []
-
 	# foreach level
 	for crit, pqueue in crit_pqueue.items():
 		# foreach task
@@ -157,8 +139,9 @@ def _initial_scheduling(initial_mapping):
 
 			done[crit].append(task)
 	"""
+	print(core_slot_map)
 
-	return initial_mapping
+	return {}
 
 
 def _map(core_tasks: CoreTaskMap, app: App, sched_check: SchedCheck) -> bool:
@@ -269,7 +252,8 @@ def solve(problem: Problem) -> Solution:
 	"""
 
 	initial_map = _initial_mapping(problem)
-	feasible_solution = _initial_scheduling(initial_map)
+	initial_solution = _initial_scheduling(initial_map, problem.graph.hyperperiod)
+	feasible_solution = _feasible_scheduling(initial_solution)
 	extensible_solution = _optimization(problem, feasible_solution)
 
 	logging.info("Solution found for:\t" + str(problem.config.filepaths))
