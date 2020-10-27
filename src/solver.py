@@ -17,18 +17,22 @@ from timed import timed_callable
 # SOLVING DICTS AND TYPE ALIASES ######################################################################################
 
 
-SCHED_CHECK = TypeVar('SCHED_CHECK', None, int)
-
-
 """Scheduling check, returns the sufficient condition."""
 # Callable[[set[Task]], bool] = lambda tasks: workload(tasks) <= sufficient_condition(len(tasks))
-SchedCheck = Callable[[SCHED_CHECK], float]  # TODO: update to work with worload from list of tasks instead
+SchedCheck = Callable[[Iterable[Task]], bool]
+Ordering = Callable[[Iterable[Task]], Iterable[Task]]
 
 
 """Policy for scheduling, containing the sufficient condition, an ordering function."""
-policies: dict[str, SchedCheck] = {
-	"edf": lambda _: 1,
-	"rm": lambda count: count * (2**(1 / count) - 1),
+policies: dict[str, tuple[SchedCheck, Ordering]] = {
+	"edf": (
+		lambda tasks: fsum(task.workload for task in tasks) <= (1 * 0.9), # replace 1 by n cores
+		lambda tasks: sorted(tasks, key=lambda t: t.deadline),
+	),
+	"rm": (
+		lambda tasks: fsum(task.workload for task in tasks) <= len(tasks) * (2**(1 / tasks) - 1), # replace by n cores
+		lambda tasks: sorted(tasks, key=lambda t: t.period), #
+	),
 }
 
 
