@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Reversible, Set
 from dataclasses import dataclass, field
 from enum import IntEnum, unique
-from functools import cached_property
+from functools import cached_property, total_ordering
 from math import fsum
 from typing import NamedTuple
 
@@ -109,7 +109,8 @@ class Task:
 			+ (f"\tchild : {self.child.id};{i}}}" if self.child is not None else "}"))
 
 
-@dataclass(order=True)
+@dataclass(eq=True)
+@total_ordering
 class App(Set, Reversible):
 	"""An application. Mutable.
 
@@ -121,8 +122,8 @@ class App(Set, Reversible):
 		The tasks within the Application.
 	"""
 
-	name: str = field(compare=False)
-	tasks: set[Task] = field(compare=False)
+	name: str
+	tasks: set[Task] = field(compare=False) # non-deterministic order
 
 	@cached_property
 	def criticality(self: App) -> Criticality:
@@ -159,6 +160,9 @@ class App(Set, Reversible):
 
 		return fsum(task.workload for task in self.tasks)
 
+	def __lt__(self: App, other: object) -> bool:
+		return self.criticality < other.criticality
+
 	def __contains__(self: App, item: object) -> bool:
 		if item.app is self:
 			for task in self.tasks:
@@ -193,13 +197,13 @@ class Graph(NamedTuple):
 
 	Attributes
 	----------
-	apps : set[App]
+	apps : list[App]
 		The applications to schedule.
 	hyperperiod : int
 		The hyperperiod length for this `Graph`, the least common divisor of the periods of all tasks.
 	"""
 
-	apps: set[App]
+	apps: list[App]
 	hyperperiod: int
 
 	@cached_property
@@ -214,7 +218,7 @@ class Graph(NamedTuple):
 		Returns
 		-------
 		Criticality
-			The maximal criticality within `self.apps`, assuming a non-empty set of applications.
+			The maximal criticality within `self.apps`, assuming a non-empty list of applications.
 		"""
 
 		return max(self.apps, key=lambda app: app.criticality).criticality
