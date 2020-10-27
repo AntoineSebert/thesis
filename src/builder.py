@@ -7,7 +7,6 @@
 import logging
 from math import lcm
 from pathlib import Path
-from weakref import ref
 
 from defusedxml import ElementTree  # type: ignore
 
@@ -91,9 +90,9 @@ def _import_graph(filepath: Path, arch: Architecture) -> Graph:
 
 		if app.get("Inorder") == "true":
 			for i, task in enumerate(apps[-1].tasks[1:]):
-				task.child = ref(apps[-1].tasks[i - 1])
+				task.child = apps[-1].tasks[i - 1]
 
-	return Graph(sorted(set(apps), reverse=True), _compute_hyperperiod(apps))
+	return Graph(sorted(apps, reverse=True), _compute_hyperperiod(apps))
 
 
 # ENTRY POINT #########################################################################################################

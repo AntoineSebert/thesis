@@ -13,7 +13,6 @@ from enum import IntEnum, unique
 from functools import cached_property
 from math import fsum
 from typing import NamedTuple
-from weakref import ReferenceType, ref
 
 from defusedxml import ElementTree  # type: ignore
 
@@ -46,39 +45,39 @@ class Task:
 	Attributes
 	----------
 	id : int
-		The node id within a `Chain`.
-	app : ReferenceType[App]
+		The node id within an `App`.
+	app : App
 		The App to which the task belongs to.
 	wcet : int
-		The WCET of the node. Cannot be `0`.
+		The WCET of the node.
 	period : int
-		The period of the node. Cannot be `0`.
+		The period of the node.
 	deadline : int
 		The deadline of the node.
 	criticality : Criticality
 		The criticality level, [0; 4].
-	child : ReferenceType[Task]
+	child : Task
 		A list of tasks to be completed before starting.
 	"""
 
 	id: int = field(compare=False)
-	app: ReferenceType[App] = field(compare=False)
+	app: App = field(compare=False)
 	wcet: int = field(compare=False)
 	period: int = field(compare=False)
 	deadline: int = field(compare=False)
-	criticality: Criticality = field(compare=False)
-	child: ReferenceType[Task] = field(compare=False)
+	criticality: Criticality
+	child: Task = field(compare=False, default=None)
 
 	def __init__(self: Task, node: ElementTree, app: App) -> None:
 		self.id = int(node.get("Id"))
-		self.app = ref(app)
+		self.app = app
 		self.wcet = int(node.get("WCET"))
 		self.period = int(node.find("Period").get("Value"))
 		self.deadline = int(node.get("Deadline"))
 		self.criticality = Criticality(int(node.get("CIL")))
 
 	def __hash__(self: Task) -> int:
-		return hash(str(self.id) + self.app().name)
+		return hash(str(self.id) + self.app.name)
 
 	@cached_property
 	def workload(self: Task) -> float:
@@ -102,12 +101,12 @@ class Task:
 
 		return (i + "task {" + i
 			+ f"\tid : {self.id};{i}"
-			f"\tapp : {self.app().name};{i}"
+			f"\tapp : {self.app.name};{i}"
 			f"\twcet : {self.wcet};{i}"
 			f"\tperiod : {self.period};{i}"
 			f"\tdeadline : {self.deadline};{i}"
 			f"\tcriticality : {int(self.criticality)};{i}"
-			+ (f"\tchild : {self.child().id};{i}}}" if self.child is not None else "}"))
+			+ (f"\tchild : {self.child.id};{i}}}" if self.child is not None else "}"))
 
 
 @dataclass(order=True)

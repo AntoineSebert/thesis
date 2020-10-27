@@ -4,8 +4,8 @@
 # IMPORTS #############################################################################################################
 
 import logging
-from typing import Callable, TypeVar, Union
-from weakref import ReferenceType, ref
+from math import fsum
+from typing import Callable, Iterable, TypeVar, Union
 
 from graph_model import App, Task
 
@@ -67,16 +67,17 @@ objectives = {
 }
 
 """A mapping of cores as keys, to a tuple of tasks and a workload as values."""
-CoreTaskMap = dict[ReferenceType[Core], tuple[set[ReferenceType[Task]], float]]
+CoreTaskMap = dict[Core, tuple[set[Task], float]]
 
 """A mapping of cores to slices, representing the inital mapping."""
-ProcAppMap = dict[ReferenceType[Processor], tuple[set[ReferenceType[App]], CoreTaskMap]]
+ProcAppMap = dict[Processor, tuple[set[App], CoreTaskMap]]
 
 """..."""
-CoreSlotMap = dict[ReferenceType[Core], dict[ReferenceType[Task], list[slice]]]
+SlotMap = dict[Criticality, dict[Task, set[slice]]]
+CoreSlotMap = dict[Core, SlotMap]
 
 """..."""
-CoreSliceMap = dict[ReferenceType[Core], dict[ReferenceType[Task], list[Slice]]]
+CoreSliceMap = dict[Core, set[Slice]]
 
 
 # FUNCTIONS ###########################################################################################################
@@ -87,7 +88,8 @@ def _optimization(problem: Problem, feasible_solution: dict) -> Solution:
 
 
 def _feasible_scheduling(initial_solution: Mapping) -> Mapping:
-	pass
+	# check if child
+	return initial_solution
 
 
 def _get_slots(core: Core, task: Task, hyperperiod: int) -> list[slice]:
@@ -95,11 +97,12 @@ def _get_slots(core: Core, task: Task, hyperperiod: int) -> list[slice]:
 
 
 def _create_task_slots(initial_mapping: ProcAppMap, hyperperiod: int) -> CoreSlotMap:
+def _create_slot_map(initial_mapping: ProcAppMap, hyperperiod: int) -> CoreSlotMap:
 	core_slot_map: CoreSlotMap = {}
 
 	for _cpu, (_apps, core_tasks) in initial_mapping.items():
 		for core, (tasks, _core_workload) in core_tasks.items():
-			core_slot_map[core] = {task: _get_slots(core(), task(), hyperperiod) for task in tasks}
+			core_slot_map[core] = _create_task_slots(core, tasks, hyperperiod)
 
 	return core_slot_map
 
@@ -132,7 +135,7 @@ def _initial_scheduling(initial_mapping: ProcAppMap, hyperperiod: int) -> Mappin
 				else:
 					start = 0
 
-				mapping[core].append(Slice(ref(task), ref(core), start, start + task.wcet))
+						slices.add(Slice(task, core, slice(slot.start + offset + st, slot.start + offset + st + task.wcet)))
 
 			if crit not in done:
 				done[crit] = []
@@ -168,7 +171,7 @@ def _map(core_tasks: CoreTaskMap, app: App, sched_check: SchedCheck) -> bool:
 		for core, (tasks, core_workload) in core_tasks.items():
 			# left-to-right conditional evaluation
 			if len(tasks) == 0 or (core_workload + task.workload) < sched_check(len(tasks) + 1):
-				tasks.add(ref(task))
+				tasks.add(task)
 				core_tasks[core] = (tasks, core_workload + task.workload)
 
 				mapped_tasks += 1
@@ -200,7 +203,7 @@ def _try_map(initial_mapping: ProcAppMap, app: App, sched_check: SchedCheck) -> 
 		buffer_mapping: CoreTaskMap = core_tasks.copy()
 
 		if _map(buffer_mapping, app, sched_check):
-			apps.add(ref(app))
+			apps.add(app)
 			initial_mapping[cpu] = (apps, buffer_mapping)
 
 			return True
@@ -223,7 +226,7 @@ def _initial_mapping(problem: Problem) -> ProcAppMap:
 	"""
 
 	initial_mapping: ProcAppMap = {
-		ref(cpu): (set(), {ref(core): (set(), 0.0) for core in cpu}) for cpu in problem.arch
+		cpu: (set(), {core: (set(), 0.0) for core in cpu}) for cpu in problem.arch
 	}
 
 	for app in problem.graph.apps:

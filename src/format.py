@@ -9,7 +9,6 @@ from functools import partial
 from json import JSONEncoder, dumps
 from queue import PriorityQueue
 from typing import Any
-from weakref import ReferenceType
 from xml.etree.ElementTree import Element, SubElement, dump, fromstringlist, indent, register_namespace, tostring
 
 from model import Path, Slice, Solution
@@ -97,7 +96,7 @@ def _xml_format(solution: Solution) -> str:
 	config = SubElement(scheduling, "configuration", {
 		"policy": solution.config.policy,
 		"switch-time": str(solution.config.switch_time),
-		"objective": "0",  # solution.config.objective,
+		"objective": solution.config.objective,
 	})
 	config.append(Element("files", {
 		"tsk": str(solution.config.filepaths.tsk),
@@ -109,13 +108,13 @@ def _xml_format(solution: Solution) -> str:
 		"score": str(solution.score),
 	})
 
-	cpus: dict[int, dict[int, list[ReferenceType[Slice]]]] = {}
+	cpus: dict[int, dict[int, list[Slice]]] = {}
 
 	for core, slices in solution.mapping.items():
-		if core().processor().id in cpus:
-			cpus[core().processor().id][core().id] = slices
+		if core.processor.id in cpus:
+			cpus[core.processor.id][core.id] = slices
 		else:
-			cpus[core().processor().id] = {core().id: slices}
+			cpus[core.processor.id] = {core.id: slices}
 
 	for cpu_id, cores in cpus.items():
 		cpu = SubElement(mapping, "processor", {"id": f"cpu-{cpu_id}"})
@@ -123,11 +122,11 @@ def _xml_format(solution: Solution) -> str:
 			_core = SubElement(cpu, "core", {"id": f"core-{core_id}"})
 			_core.extend([
 				Element("slice", {
-					"start": str(_slice().start),
-					"stop": str(_slice().stop),
-					"duration": str(_slice().stop - _slice().start),
-					"app": _slice().task().app().name,
-					"task": str(_slice().task().id),
+					"start": str(_slice.et.start),
+					"stop": str(_slice.et.stop),
+					"duration": str(_slice.duration),
+					"app": _slice().task.app.name,
+					"task": str(_slice.task.id),
 				}) for _slice in slices
 			])
 

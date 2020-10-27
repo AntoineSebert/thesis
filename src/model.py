@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from functools import cached_property, total_ordering
 from pathlib import Path
 from typing import NamedTuple, TypeVar
-from weakref import ReferenceType
 
 
 from graph_model import Graph, Task
@@ -21,9 +20,8 @@ from graph_model import Graph, Task
 
 
 @total_ordering
-@dataclass
-class Core:
-	"""Represents a core. Mutable to support `weakref`, not modified in practice.
+class Core(NamedTuple):
+	"""Represents a core.
 
 	Attributes
 	----------
@@ -53,7 +51,7 @@ class Core:
 
 @dataclass
 class Processor(Set, Reversible):
-	"""Represents a processor. Mutable.
+	"""Represents a processor.
 
 	Attributes
 	----------
@@ -97,22 +95,22 @@ Architecture = set[Processor]
 
 
 class Slice(NamedTuple):
-	"""Named tuple representing an execution slice of a task. Immutable.
+	"""Represents an execution slice of a task.
 
 	Attributes
 	----------
-	task : int
-		The reference to the task the slice belongs to.
-	core : ReferenceType[Core]
-		The reference to the core the slice is scheduled on.
+	task : Task
+		The task the slice belongs to.
+	core : Core
+		The core the slice is scheduled on.
 	start : int
 		The start time of the slice.
 	stop : int
 		The stop time of the slice.
 	"""
 
-	task: ReferenceType[Task]
-	core: ReferenceType[Core]
+	task: Task
+	core: Core
 	start: int
 	stop: int
 
@@ -144,7 +142,7 @@ class Slice(NamedTuple):
 
 
 class FilepathPair(NamedTuple):
-	"""Holds a `FilepathPair` to a `*.tsk` and a `*.cfg` file, representing a test case. Immutable.
+	"""Holds a `FilepathPair` to a `*.tsk` and a `*.cfg` file, representing a test case.
 
 	Attributes
 	----------
@@ -167,7 +165,7 @@ CONFIG_JSON = TypeVar('CONFIG_JSON', FilepathPair, int, str)
 
 
 class Configuration(NamedTuple):
-	"""Binds a `FilepathPair` to a constraint level and a scheduling policy. Immutable.
+	"""Binds a `FilepathPair` to a constraint level and a scheduling policy.
 
 	Attributes
 	----------
@@ -231,12 +229,12 @@ class Problem(NamedTuple):
 
 
 """A mapping of cores to slices, representing the inital mapping."""
-Mapping = dict[ReferenceType[Core], list[ReferenceType[Slice]]]
+Mapping = dict[Core, list[Slice]]
 
 
 @dataclass
 class Solution:
-	"""A solution holding an hyperperiod as `int`, and an architecture as Architecture (should be: `ref(Architecture)`).
+	"""A solution from a final schedule.
 
 	Attributes
 	----------
