@@ -9,6 +9,7 @@ from functools import partial
 from json import JSONEncoder, dumps
 from queue import PriorityQueue
 from typing import Any
+from weakref import ReferenceType
 from xml.etree.ElementTree import Element, SubElement, dump, fromstringlist, indent, register_namespace, tostring
 
 from model import Path, Slice, Solution
@@ -61,7 +62,6 @@ def _json_format(solution: Solution) -> str:
 	str
 		A `str` representing a JSON `Solution`.
 	"""
-	print(dumps(solution, skipkeys=True, sort_keys=True, indent=4, cls=SolutionEncoder))
 
 	return dumps(solution, skipkeys=True, sort_keys=True, indent=4, cls=SolutionEncoder)
 
@@ -109,7 +109,7 @@ def _xml_format(solution: Solution) -> str:
 		"score": str(solution.score),
 	})
 
-	cpus: dict[int, dict[int, list[Slice]]] = {}
+	cpus: dict[int, dict[int, list[ReferenceType[Slice]]]] = {}
 
 	for core, slices in solution.mapping.items():
 		if core().processor().id in cpus:
@@ -120,14 +120,14 @@ def _xml_format(solution: Solution) -> str:
 	for cpu_id, cores in cpus.items():
 		cpu = SubElement(mapping, "processor", {"id": f"cpu-{cpu_id}"})
 		for core_id, slices in cores.items():
-			core = SubElement(cpu, "core", {"id": f"core-{core_id}"})
-			core.extend([
+			_core = SubElement(cpu, "core", {"id": f"core-{core_id}"})
+			_core.extend([
 				Element("slice", {
-					"start": str(_slice.start),
-					"stop": str(_slice.stop),
-					"duration": str(_slice.stop - _slice.start),
-					"app": _slice.task().app().name,
-					"task": str(_slice.task().id),
+					"start": str(_slice().start),
+					"stop": str(_slice().stop),
+					"duration": str(_slice().stop - _slice().start),
+					"app": _slice().task().app().name,
+					"task": str(_slice().task().id),
 				}) for _slice in slices
 			])
 
