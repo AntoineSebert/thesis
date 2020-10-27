@@ -7,7 +7,7 @@ import logging
 from math import fsum
 from typing import Callable, Iterable, TypeVar, Union
 
-from graph_model import App, Task
+from graph_model import App, Criticality, Graph, Task
 
 from model import Core, Mapping, Problem, Processor, Slice, Solution
 
@@ -96,11 +96,21 @@ def _feasible_scheduling(initial_solution: Mapping) -> Mapping:
 	return initial_solution
 
 
-def _get_slots(core: Core, task: Task, hyperperiod: int) -> list[slice]:
-	return [slice(i * task.period, (i * task.period) + task.wcet) for i in range(int(hyperperiod / task.period))]
+def _get_slots(task: Task, hyperperiod: int) -> set[slice]:
+	return [slice(i * task.period, (i * task.period) + task.deadline) for i in range(int(hyperperiod / task.period))]
 
 
-def _create_task_slots(initial_mapping: ProcAppMap, hyperperiod: int) -> CoreSlotMap:
+def _create_task_slots(core: Core, tasks: set[Task], hyperperiod: int) -> SlotMap:
+	slot_map: SlotMap = {}
+
+	for task in tasks:
+		if task.criticality not in slot_map:
+			slot_map[task.criticality] = {}
+		slot_map[task.criticality][task] = _get_slots(task, hyperperiod)
+
+	return dict(sorted(slot_map.items(), key=lambda x: x[0], reverse=True))
+
+
 def _create_slot_map(initial_mapping: ProcAppMap, hyperperiod: int) -> CoreSlotMap:
 	core_slot_map: CoreSlotMap = {}
 
@@ -111,44 +121,73 @@ def _create_slot_map(initial_mapping: ProcAppMap, hyperperiod: int) -> CoreSlotM
 	return core_slot_map
 
 
-def _initial_scheduling(initial_mapping: ProcAppMap, hyperperiod: int) -> Mapping:
-	core_slot_map: CoreSlotMap = _create_task_slots(initial_mapping, hyperperiod)
+def _intersect(slice1: Slice, slice2: Slice, switch_time: int = 0) -> bool:
+	""" TODO
+	1.
+	A |-----------|
+	B       |-----------|
 
+	2.
+	A       |-----------|
+	B |-----------|
+
+	3.
+	A    |-------|
+	B |-------------|
+
+	4.
+	A |-------------|
+	B    |-------|
 	"""
-	# foreach level
-	for crit, pqueue in crit_pqueue.items():
-		# foreach task
-		while not pqueue.empty():
-			priority, task = pqueue.get()
+	return slice1.start - switch_time <= slice2.start <= slice1.stop + switch_time or slice1.start - switch_time <= slice2.stop <= slice1.stop + switch_time
 
-			# get least used core within task cpu
-			core = get_core(task, mapping)
 
-			# if not schedulable
-			if core is None:
-				# if no backtrack possible
-				if crit == Criticality.sta_4:
-					print("fail")
-				# else backtrack
+def _initial_scheduling(initial_mapping: ProcAppMap, problem: Problem) -> CoreSliceMap:
+	core_slot_map: CoreSlotMap = _create_slot_map(initial_mapping, problem.graph.hyperperiod)
+	_, ordering = policies[problem.config.policy]
+	core_slices: CoreSliceMap = {core: {} for core in core_slot_map.keys()}
+
+	for core, crit_tasks in core_slot_map.items():
+		for crit, task_slots in crit_tasks.items():
+			for task in ordering(task_slots.keys()):
+				# groupby()
+					# for sorted by index
+					# generate all slices at once depending on eventual previous task slices
+				# assign offset for each slot
+				if len(core_slices[core]) == 0:
+					core_slices[core] = {
+						Slice(task, core, slice(slot.start, slot.start + task.wcet)) for slot in task_slots[task]
+					}
 				else:
-					print("compute backtrack")
-			# else schedule
-			else:
-				if core in mapping and len(mapping[core]):
-					start = mapping[core][-1].stop
-				else:
-					start = 0
+					slices: set[Slice] = set()
+
+					for slot in task_slots[task]:
+						offset = 0
+						# check if conflicts and compute time available
+						for _slice in core_slices[core]:
+							# pass switch_time depending on same partition or not
+							st = 0 if task.criticality == _slice.task.criticality else problem.config.switch_time
+							if _intersect(_slice.et, slot, st):
+								pass
+						# if total time available > task.wcet
+							# make slices
+						# else break
 
 						slices.add(Slice(task, core, slice(slot.start + offset + st, slot.start + offset + st + task.wcet)))
 
-			if crit not in done:
-				done[crit] = []
+					execution_time = sum(_slice.et.stop - _slice.et.start for _slice in slices)
+					if (total_execution_time := int(problem.graph.hyperperiod / task.period) * task.wcet) == execution_time:
+						core_slices[core] |= slices
+					elif execution_time < total_execution_time and crit < problem.graph.max_criticality:
+						pass # backtrack
+					else:
+						pass #raise RuntimeError(f"Initial scheduling failed with task : '{task.app.name}/{task.id}'")
 
-			done[crit].append(task)
-	"""
-	print(core_slot_map)
+	for core, slices in core_slices.items():
+		print(core.pformat())
+		print('\t' + '\n\t'.join(f"{_slice.task.app.name}/{_slice.task.id}:{_slice.et}" for _slice in slices))
 
-	return {}
+	return core_slices
 
 
 def _map(core_tasks: CoreTaskMap, app: App, sched_check: SchedCheck) -> bool:
@@ -173,8 +212,10 @@ def _map(core_tasks: CoreTaskMap, app: App, sched_check: SchedCheck) -> bool:
 
 	for task in app:
 		for core, (tasks, core_workload) in core_tasks.items():
+			_tasks = tasks.copy()
+			_tasks.add(task)
 			# left-to-right conditional evaluation
-			if len(tasks) == 0 or (core_workload + task.workload) < sched_check(len(tasks) + 1):
+			if len(tasks) == 0 or sched_check(_tasks):
 				tasks.add(task)
 				core_tasks[core] = (tasks, core_workload + task.workload)
 
@@ -203,6 +244,8 @@ def _try_map(initial_mapping: ProcAppMap, app: App, sched_check: SchedCheck) -> 
 	"""
 
 	# transform strategy for mapping : spread instead stack
+	# use app-level and processor-level sched checks with len(cores) (or more like len(cpu) actually) + pqueue
+	# bug with rate monotonic ?
 	for cpu, (apps, core_tasks) in initial_mapping.items():
 		buffer_mapping: CoreTaskMap = core_tasks.copy()
 
@@ -271,7 +314,7 @@ def solve(problem: Problem) -> Solution:
 	"""
 
 	initial_map = _initial_mapping(problem)
-	initial_solution = _initial_scheduling(initial_map, problem.graph.hyperperiod)
+	initial_solution = _initial_scheduling(initial_map, problem)
 	feasible_solution = _feasible_scheduling(initial_solution)
 	extensible_solution = _optimization(problem, feasible_solution)
 
