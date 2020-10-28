@@ -64,7 +64,7 @@ This project is licensed under the Mozilla Public License 2.0, that you can find
 
 ## Authors
 
-[Antoine/Anthony Sébert](https://github.com/AntoineSebert) - Everything
+[Antoine/Anthony Sébert](https://github.com/AntoineSebert) - Code
 
 ## Acknowledgments
 

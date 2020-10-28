@@ -5,9 +5,10 @@
 
 import logging
 from math import fsum
-from typing import Callable, Iterable, TypeVar, Union
+from queue import PriorityQueue
+from typing import Callable, Collection, Iterable, Union
 
-from graph_model import App, Criticality, Graph, Task
+from graph_model import App, Criticality, Task
 
 from model import Core, Mapping, Problem, Processor, Slice, Solution
 
@@ -19,19 +20,19 @@ from timed import timed_callable
 
 """Scheduling check, returns the sufficient condition."""
 # Callable[[set[Task]], bool] = lambda tasks: workload(tasks) <= sufficient_condition(len(tasks))
-SchedCheck = Callable[[Iterable[Task]], bool]
+SchedCheck = Callable[[Collection[Task], Collection[Core]], bool]
 Ordering = Callable[[Iterable[Task]], Iterable[Task]]
 
 
 """Policy for scheduling, containing the sufficient condition, an ordering function."""
 policies: dict[str, tuple[SchedCheck, Ordering]] = {
 	"edf": (
-		lambda tasks: fsum(task.workload for task in tasks) <= (1 * 0.9), # replace 1 by n cores
+		lambda tasks, cores: fsum(task.workload for task in tasks) <= len(cores) * 0.9,
 		lambda tasks: sorted(tasks, key=lambda t: t.deadline),
 	),
 	"rm": (
-		lambda tasks: fsum(task.workload for task in tasks) <= len(tasks) * (2**(1 / tasks) - 1), # replace by n cores
-		lambda tasks: sorted(tasks, key=lambda t: t.period), #
+		lambda tasks, cores: fsum(task.workload for task in tasks) <= len(cores) * 0.9 * (len(tasks) * (2**(1 / len(tasks)) - 1)),
+		lambda tasks: sorted(tasks, key=lambda t: t.period),
 	),
 }
 
@@ -71,7 +72,7 @@ objectives = {
 }
 
 """A mapping of cores as keys, to a tuple of tasks and a workload as values."""
-CoreTaskMap = dict[Core, tuple[set[Task], float]]
+CoreTaskMap = dict[Core, set[Task]]
 
 """A mapping of cores to slices, representing the inital mapping."""
 ProcAppMap = dict[Processor, tuple[set[App], CoreTaskMap]]
@@ -87,13 +88,21 @@ CoreSliceMap = dict[Core, set[Slice]]
 # FUNCTIONS ###########################################################################################################
 
 
+# optimization --------------------------------------------------------------------------------------------------------
+
 def _optimization(problem: Problem, feasible_solution: dict) -> Solution:
 	return Solution(problem.config, problem.graph.hyperperiod, 0, {})
+
+
+# feasible scheduling -------------------------------------------------------------------------------------------------
 
 
 def _feasible_scheduling(initial_solution: Mapping) -> Mapping:
 	# check if child
 	return initial_solution
+
+
+# initial scheduling --------------------------------------------------------------------------------------------------
 
 
 def _get_slots(task: Task, hyperperiod: int) -> set[slice]:
@@ -115,37 +124,56 @@ def _create_slot_map(initial_mapping: ProcAppMap, hyperperiod: int) -> CoreSlotM
 	core_slot_map: CoreSlotMap = {}
 
 	for _cpu, (_apps, core_tasks) in initial_mapping.items():
-		for core, (tasks, _core_workload) in core_tasks.items():
+		for core, tasks in core_tasks.items():
 			core_slot_map[core] = _create_task_slots(core, tasks, hyperperiod)
 
 	return core_slot_map
 
 
-def _intersect(slice1: Slice, slice2: Slice, switch_time: int = 0) -> bool:
-	""" TODO
-	1.
-	A |-----------|
-	B       |-----------|
+def _intersect(slice1: Slice, slice2: Slice) -> bool:
+	return slice1.start <= slice2.start <= slice1.stop\
+		or slice1.start <= slice2.stop <= slice1.stop\
+		or (slice2.start <= slice1.start and slice1.stop <= slice2.stop)
 
-	2.
-	A       |-----------|
-	B |-----------|
 
-	3.
-	A    |-------|
-	B |-------------|
+def _check_execution_time(task: Task, slices: set[Slice], hyperperiod: int) -> bool:
+	return int(hyperperiod / task.period) * task.wcet == sum(_slice.et.stop - _slice.et.start for _slice in slices)
 
-	4.
-	A |-------------|
-	B    |-------|
-	"""
-	return slice1.start - switch_time <= slice2.start <= slice1.stop + switch_time or slice1.start - switch_time <= slice2.stop <= slice1.stop + switch_time
+
+def _schedule_task(task: Task, core: Core, slots: set[slice], slices: set[Slice], hyperperiod: int) -> bool:
+	# assign offset for each slot
+	if len(slices) == 0:
+		slices = {Slice(task, core, slice(slot.start, slot.start + task.wcet)) for slot in slots}
+
+		return True
+	else:
+		slices_buffer: set[Slice] = set()
+
+		for slot in slots:
+			offset = 0
+			# check if conflicts and compute time available
+			for _slice in slices:
+				# pass switch_time depending on same partition or not
+				if _intersect(_slice.et, slot):
+					pass
+			# if total time available > task.wcet
+				# make slices
+			# else break
+
+			slices_buffer.add(Slice(task, core, slice(slot.start + offset, slot.start + offset + task.wcet)))
+
+			if _check_execution_time(task, slices_buffer, hyperperiod):
+				slices |= slices_buffer
+
+				return True
+			else:
+				return False
 
 
 def _initial_scheduling(initial_mapping: ProcAppMap, problem: Problem) -> CoreSliceMap:
 	core_slot_map: CoreSlotMap = _create_slot_map(initial_mapping, problem.graph.hyperperiod)
 	_, ordering = policies[problem.config.policy]
-	core_slices: CoreSliceMap = {core: {} for core in core_slot_map.keys()}
+	core_slices: CoreSliceMap = {core: set() for core in core_slot_map.keys()}
 
 	for core, crit_tasks in core_slot_map.items():
 		for crit, task_slots in crit_tasks.items():
@@ -153,35 +181,11 @@ def _initial_scheduling(initial_mapping: ProcAppMap, problem: Problem) -> CoreSl
 				# groupby()
 					# for sorted by index
 					# generate all slices at once depending on eventual previous task slices
-				# assign offset for each slot
-				if len(core_slices[core]) == 0:
-					core_slices[core] = {
-						Slice(task, core, slice(slot.start, slot.start + task.wcet)) for slot in task_slots[task]
-					}
-				else:
-					slices: set[Slice] = set()
-
-					for slot in task_slots[task]:
-						offset = 0
-						# check if conflicts and compute time available
-						for _slice in core_slices[core]:
-							# pass switch_time depending on same partition or not
-							st = 0 if task.criticality == _slice.task.criticality else problem.config.switch_time
-							if _intersect(_slice.et, slot, st):
-								pass
-						# if total time available > task.wcet
-							# make slices
-						# else break
-
-						slices.add(Slice(task, core, slice(slot.start + offset + st, slot.start + offset + st + task.wcet)))
-
-					execution_time = sum(_slice.et.stop - _slice.et.start for _slice in slices)
-					if (total_execution_time := int(problem.graph.hyperperiod / task.period) * task.wcet) == execution_time:
-						core_slices[core] |= slices
-					elif execution_time < total_execution_time and crit < problem.graph.max_criticality:
+				if not _schedule_task(task, core, task_slots[task], core_slices[core], problem.graph.hyperperiod):
+					if crit < problem.graph.max_criticality:
 						pass # backtrack
 					else:
-						pass #raise RuntimeError(f"Initial scheduling failed with task : '{task.app.name}/{task.id}'")
+						raise RuntimeError(f"Initial scheduling failed with task : '{task.app.name}/{task.id}'")
 
 	for core, slices in core_slices.items():
 		print(core.pformat())
@@ -190,48 +194,16 @@ def _initial_scheduling(initial_mapping: ProcAppMap, problem: Problem) -> CoreSl
 	return core_slices
 
 
-def _map(core_tasks: CoreTaskMap, app: App, sched_check: SchedCheck) -> bool:
-	"""Tries to map the tasks of an application to the cores of a processor.
-
-	Parameters
-	----------
-	core_tasks : CoreTaskMap
-		A mapping of cores to tasks.
-	app : App
-		An application to map.
-	sched_check : SchedCheck
-		A scheduling check.
-
-	Returns
-	-------
-	bool
-		Returns `True` if the application have been mapped, or `False` otherwise.
-	"""
-
-	mapped_tasks: int = 0
-
-	for task in app:
-		for core, (tasks, core_workload) in core_tasks.items():
-			_tasks = tasks.copy()
-			_tasks.add(task)
-			# left-to-right conditional evaluation
-			if len(tasks) == 0 or sched_check(_tasks):
-				tasks.add(task)
-				core_tasks[core] = (tasks, core_workload + task.workload)
-
-				mapped_tasks += 1
-				break
-
-	return len(app.tasks) == mapped_tasks
+# initial mapping -----------------------------------------------------------------------------------------------------
 
 
-def _try_map(initial_mapping: ProcAppMap, app: App, sched_check: SchedCheck) -> bool:
+def _try_map(core_tasks: CoreTaskMap, app: App, sched_check: SchedCheck) -> bool:
 	"""Tries to map an application to a processor.
 
 	Parameters
 	----------
-	initial_mapping : ProcAppMap
-		A mapping of processors to applications.
+	core_tasks : CoreTaskMap
+		...
 	app : App
 		An application to map.
 	sched_check : SchedCheck
@@ -243,19 +215,33 @@ def _try_map(initial_mapping: ProcAppMap, app: App, sched_check: SchedCheck) -> 
 		Returns `True` if the application have been mapped, or `False` otherwise.
 	"""
 
-	# transform strategy for mapping : spread instead stack
-	# use app-level and processor-level sched checks with len(cores) (or more like len(cpu) actually) + pqueue
 	# bug with rate monotonic ?
-	for cpu, (apps, core_tasks) in initial_mapping.items():
-		buffer_mapping: CoreTaskMap = core_tasks.copy()
 
-		if _map(buffer_mapping, app, sched_check):
-			apps.add(app)
-			initial_mapping[cpu] = (apps, buffer_mapping)
+	core_pqueue: PriorityQueue = PriorityQueue(maxsize=len(core_tasks.keys()))
 
-			return True
+	for core in core_tasks.keys():
+		core_pqueue.put(core)
 
-	return False
+	for task in app:
+		core = core_pqueue.get()
+
+		changed = False
+		for _core, _tasks in core_tasks.items():
+			if _core.id == core.id:
+				tasks = _tasks
+				changed = True
+		if not changed:
+			raise RuntimeError(f"ffs")
+
+		if len(tasks) == 0 or sched_check(tasks, [core]):
+			tasks.add(task)
+			core.workload += task.workload
+		else:
+			return False
+
+		core_pqueue.put(core)
+
+	return True
 
 
 def _initial_mapping(problem: Problem) -> ProcAppMap:
@@ -272,25 +258,31 @@ def _initial_mapping(problem: Problem) -> ProcAppMap:
 		A mapping of the initial basis for the problem solving.
 	"""
 
-	initial_mapping: ProcAppMap = {
-		cpu: (set(), {core: (set(), 0.0) for core in cpu}) for cpu in problem.arch
-	}
-
+	initial_mapping: ProcAppMap = {}
+	cpu_pqueue: PriorityQueue = PriorityQueue(maxsize=len(problem.arch))
 	sched_check, _ = policies[problem.config.policy]
 
+	for cpu in problem.arch:
+		cpu_pqueue.put(cpu)
+		initial_mapping[cpu] = (set(), {core: set() for core in cpu})
+
 	for app in problem.graph.apps:
-		if not _try_map(initial_mapping, app, sched_check):
+		cpu = cpu_pqueue.get()
+		apps, core_tasks = initial_mapping[cpu]
+
+		if (len(apps) == 0 or sched_check(app, cpu)) and _try_map(core_tasks, app, sched_check):
+			apps.add(app)
+		else:
 			raise RuntimeError(f"Initial mapping failed with app : '{app.name}'")
 
-	"""
-	for core, crit_tasks in core_slot_map.items():
-		print(core.pformat())
-		for crit, task_slots in crit_tasks.items():
-			print("\t" + str(crit))
-			for task, slots in task_slots.items():
+		cpu_pqueue.put(cpu)
+
+	for cpu, (apps, core_tasks) in initial_mapping.items():
+		print(cpu.pformat())
+		for core, tasks in core_tasks.items():
+			print(core.pformat(1))
+			for task in tasks:
 				print("\t\t" + task.app.name + "/" + str(task.id))
-				print('\t\t\t' + '\n\t\t\t'.join(str(slot) for slot in slots))
-	"""
 
 	return initial_mapping
 

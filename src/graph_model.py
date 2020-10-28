@@ -64,6 +64,7 @@ class Task:
 	app: App = field(compare=False)
 	wcet: int = field(compare=False)
 	period: int = field(compare=False)
+	# n_slots cached_property : hyperperiod / period
 	deadline: int = field(compare=False)
 	criticality: Criticality
 	child: Task = field(compare=False, default=None)
@@ -123,7 +124,7 @@ class App(Set, Reversible):
 	"""
 
 	name: str
-	tasks: set[Task] = field(compare=False) # non-deterministic order
+	tasks: set[Task] = field(compare=False)  # non-deterministic order
 
 	@cached_property
 	def criticality(self: App) -> Criticality:

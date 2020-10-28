@@ -7,8 +7,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterator, Reversible, Set
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property, total_ordering
+from math import fsum
 from pathlib import Path
 from typing import NamedTuple, TypeVar
 
@@ -19,8 +20,9 @@ from graph_model import Graph, Task
 # CLASSES AND TYPE ALIASES ############################################################################################
 
 
+@dataclass(eq=True)
 @total_ordering
-class Core(NamedTuple):
+class Core:
 	"""Represents a core.
 
 	Attributes
@@ -29,27 +31,30 @@ class Core(NamedTuple):
 		The core id within a `Processor`.
 	processor : Processor
 		The processor this core belongs to.
+	workload : float
+		Workload carried by the tasks scheduled on this core.
 	"""
 
 	id: int
 	processor: Processor
+	workload: float = field(compare=False, default=0.0)
+
+	def __init__(self: Core, id: int, processor: Processor) -> None:
+		self.id = id
+		self.processor = processor
 
 	def __hash__(self: Core) -> int:
 		return hash(str(self.id) + str(self.processor))
 
-	def __eq__(self: Core, other: object) -> bool:
-		if not isinstance(other, Core):
-			return NotImplemented
-		return self.id == other.id and self.processor is other.processor
-
 	def __lt__(self: Core, other: Core) -> bool:
-		return self.processor.id < other.processor.id and self.id < other.id
+		return self.workload < other.workload
 
 	def pformat(self: Core, level: int = 0) -> str:
-		return "\n" + ("\t" * level) + f"core {{ id : {self.id}; processor : {self.processor.id} }}"
+		return "\n" + ("\t" * level) + f"core {{ id : {self.id}; processor : {self.processor.id}; workload: {self.workload} }}"
 
 
-@dataclass
+@dataclass(eq=True)
+@total_ordering
 class Processor(Set, Reversible):
 	"""Represents a processor.
 
@@ -62,7 +67,42 @@ class Processor(Set, Reversible):
 	"""
 
 	id: int
-	cores: set[Core]
+	cores: set[Core] = field(compare=False)
+
+	def workload(self: Processor) -> float:
+		""" The workload of the processor.
+
+		Parameters
+		----------
+		self : Processor
+			The instance of `Processor`.
+
+		Returns
+		-------
+		float
+			The sum of workload of all cores on this processor.
+		"""
+
+		return fsum(core.workload for core in self.cores) if len(self.cores) != 0 else 0.0
+
+	def get_min_core(self: Processor) -> Core:
+		""" The core on the processor with the lowest workload.
+
+		Parameters
+		----------
+		self : Processor
+			The instance of `Processor`.
+
+		Returns
+		-------
+		core
+			A core.
+		"""
+
+		return min(self.cores)
+
+	def __lt__(self: Processor, other: object) -> bool:
+		return self.workload() < other.workload()
 
 	def __contains__(self: Processor, item: object) -> bool:
 		if item.processor is self:
