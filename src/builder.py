@@ -92,7 +92,7 @@ def _import_graph(filepath: Path, arch: Architecture) -> Graph:
 			for i, task in enumerate(apps[-1].tasks[1:]):
 				task.child = apps[-1].tasks[i - 1]
 
-	return Graph(sorted(apps, reverse=True), _compute_hyperperiod(apps))
+	return Graph(reversed(apps), _compute_hyperperiod(apps))
 
 
 # ENTRY POINT #########################################################################################################
