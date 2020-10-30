@@ -31,7 +31,8 @@ policies: dict[str, tuple[SchedCheck, Ordering]] = {
 		lambda tasks: sorted(tasks, key=lambda t: t.deadline),
 	),
 	"rm": (
-		lambda tasks, cores: fsum(task.workload for task in tasks) <= len(cores) * 0.9 * (len(tasks) * (2**(1 / len(tasks)) - 1)),
+		lambda tasks, cores: fsum(task.workload for task in tasks)
+			<= len(cores) * 0.9 * (len(tasks) * (2**(1 / len(tasks)) - 1)),
 		lambda tasks: sorted(tasks, key=lambda t: t.period),
 	),
 }
@@ -74,7 +75,7 @@ objectives = {
 """A mapping of cores as keys, to a tuple of tasks and a workload as values."""
 CoreTaskMap = dict[Core, set[Task]]
 
-"""A mapping of cores to slices, representing the inital mapping."""
+"""A mapping of processors to applications maps, representing the inital mapping."""
 ProcAppMap = dict[Processor, tuple[set[App], CoreTaskMap]]
 
 """..."""
@@ -183,13 +184,14 @@ def _initial_scheduling(initial_mapping: ProcAppMap, problem: Problem) -> CoreSl
 					# generate all slices at once depending on eventual previous task slices
 				if not _schedule_task(task, core, task_slots[task], core_slices[core], problem.graph.hyperperiod):
 					if crit < problem.graph.max_criticality:
-						pass # backtrack
+						pass  # backtrack
 					else:
 						raise RuntimeError(f"Initial scheduling failed with task : '{task.app.name}/{task.id}'")
-
+	"""
 	for core, slices in core_slices.items():
 		print(core.pformat())
 		print('\t' + '\n\t'.join(f"{_slice.task.app.name}/{_slice.task.id}:{_slice.et}" for _slice in slices))
+	"""
 
 	return core_slices
 
