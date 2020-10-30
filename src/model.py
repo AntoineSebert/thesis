@@ -20,7 +20,7 @@ from graph_model import Graph, Task
 # CLASSES AND TYPE ALIASES ############################################################################################
 
 
-@dataclass(eq=True)
+@dataclass
 @total_ordering
 class Core:
 	"""Represents a core.
@@ -37,20 +37,20 @@ class Core:
 
 	id: int
 	processor: Processor
-	workload: float = field(compare=False, default=0.0)
-
-	def __init__(self: Core, id: int, processor: Processor) -> None:
-		self.id = id
-		self.processor = processor
+	workload: float = field(default=0.0)
 
 	def __hash__(self: Core) -> int:
-		return hash(str(self.id) + str(self.processor))
+		return hash(str(self.id) + str(self.processor) + str(self.workload))
 
 	def __lt__(self: Core, other: Core) -> bool:
 		return self.workload < other.workload
 
+	def __eq__(self: Core, other: Core) -> bool:
+		return self.id == other.id and self.processor == other.processor
+
 	def pformat(self: Core, level: int = 0) -> str:
-		return "\n" + ("\t" * level) + f"core {{ id : {self.id}; processor : {self.processor.id}; workload: {self.workload} }}"
+		return ("\n" + ("\t" * level)
+			+ f"core {{ id : {self.id}; processor : {self.processor.id}; workload: {self.workload}; }}")
 
 
 @dataclass(eq=True)
