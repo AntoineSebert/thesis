@@ -11,7 +11,7 @@ from queue import PriorityQueue
 from typing import Any
 from xml.etree.ElementTree import Element, SubElement, dump, fromstringlist, indent, register_namespace, tostring
 
-from model import Path, Slice, Solution
+from model import ExecSlice, Path, Solution
 
 from timed import timed_callable
 
@@ -108,7 +108,7 @@ def _xml_format(solution: Solution) -> str:
 		"score": str(solution.score),
 	})
 
-	cpus: dict[int, dict[int, list[Slice]]] = {}
+	cpus: dict[int, dict[int, list[ExecSlice]]] = {}
 
 	for core, slices in solution.mapping.items():
 		if core.processor.id in cpus:

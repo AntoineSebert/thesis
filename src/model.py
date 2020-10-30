@@ -134,7 +134,10 @@ class Processor(Set, Reversible):
 Architecture = set[Processor]
 
 
-class Slice(NamedTuple):
+exec_window = slice
+
+
+class ExecSlice(NamedTuple):
 	"""Represents an execution slice of a task.
 
 	Attributes
@@ -143,22 +146,22 @@ class Slice(NamedTuple):
 		The task the slice belongs to.
 	core : Core
 		The core the slice is scheduled on.
-	et : slice
-		The slice of execution time.
+	et : exec_window
+		The window execution time.
 	"""
 
 	task: Task
 	core: Core
-	et: slice
+	et: exec_window
 
 	@cached_property
-	def duration(self: Slice) -> int:
+	def duration(self: ExecSlice) -> int:
 		"""Computes and caches the duration of the slice.
 
 		Parameters
 		----------
-		self : Slice
-			The instance of `Slice`.
+		self : ExecSlice
+			The instance of `ExecSlice`.
 
 		Returns
 		-------
@@ -171,7 +174,7 @@ class Slice(NamedTuple):
 	def __hash__(self: Processor) -> int:
 		return hash(str(hash(self.task)) + str(hash(self.core)) + str(self.et.start) + str(self.et.stop))
 
-	def pformat(self: Slice, level: int = 0) -> str:
+	def pformat(self: ExecSlice, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
 		ii = i + "\t"
 
@@ -269,7 +272,7 @@ class Problem(NamedTuple):
 
 
 """A mapping of cores to slices, representing the inital mapping."""
-Mapping = dict[Core, list[Slice]]
+Mapping = dict[Core, list[ExecSlice]]
 
 
 @dataclass

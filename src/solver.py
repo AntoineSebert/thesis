@@ -10,7 +10,7 @@ from typing import Callable, Collection, Iterable, Union
 
 from graph_model import App, Criticality, Task
 
-from model import Core, Mapping, Problem, Processor, Slice, Solution
+from model import Core, ExecSlice, Mapping, Problem, Processor, Solution, exec_window
 
 from timed import timed_callable
 
@@ -78,11 +78,11 @@ CoreTaskMap = dict[Core, set[Task]]
 ProcAppMap = dict[Processor, tuple[set[App], CoreTaskMap]]
 
 """..."""
-SlotMap = dict[Criticality, dict[Task, set[slice]]]
+SlotMap = dict[Criticality, dict[Task, set[exec_window]]]
 CoreSlotMap = dict[Core, SlotMap]
 
 """..."""
-CoreSliceMap = dict[Core, set[Slice]]
+CoreSliceMap = dict[Core, set[ExecSlice]]
 
 
 # FUNCTIONS ###########################################################################################################
@@ -105,8 +105,8 @@ def _feasible_scheduling(initial_solution: Mapping) -> Mapping:
 # initial scheduling --------------------------------------------------------------------------------------------------
 
 
-def _get_slots(task: Task, hyperperiod: int) -> set[slice]:
-	return [slice(i * task.period, (i * task.period) + task.deadline) for i in range(int(hyperperiod / task.period))]
+def _get_slots(task: Task, hyperperiod: int) -> set[exec_window]:
+	return [exec_window(i * task.period, (i * task.period) + task.deadline) for i in range(int(hyperperiod / task.period))]
 
 
 def _create_task_slots(core: Core, tasks: set[Task], hyperperiod: int) -> SlotMap:
@@ -130,24 +130,24 @@ def _create_slot_map(initial_mapping: ProcAppMap, hyperperiod: int) -> CoreSlotM
 	return core_slot_map
 
 
-def _intersect(slice1: Slice, slice2: Slice) -> bool:
+def _intersect(slice1: ExecSlice, slice2: ExecSlice) -> bool:
 	return slice1.start <= slice2.start <= slice1.stop\
 		or slice1.start <= slice2.stop <= slice1.stop\
 		or (slice2.start <= slice1.start and slice1.stop <= slice2.stop)
 
 
-def _check_execution_time(task: Task, slices: set[Slice], hyperperiod: int) -> bool:
+def _check_execution_time(task: Task, slices: set[ExecSlice], hyperperiod: int) -> bool:
 	return int(hyperperiod / task.period) * task.wcet == sum(_slice.et.stop - _slice.et.start for _slice in slices)
 
 
-def _schedule_task(task: Task, core: Core, slots: set[slice], slices: set[Slice], hyperperiod: int) -> bool:
+def _schedule_task(task: Task, core: Core, slots: set[exec_window], slices: set[ExecSlice], hyperperiod: int) -> bool:
 	# assign offset for each slot
 	if len(slices) == 0:
-		slices = {Slice(task, core, slice(slot.start, slot.start + task.wcet)) for slot in slots}
+		slices = {ExecSlice(task, core, exec_window(slot.start, slot.start + task.wcet)) for slot in slots}
 
 		return True
 	else:
-		slices_buffer: set[Slice] = set()
+		slices_buffer: set[ExecSlice] = set()
 
 		for slot in slots:
 			offset = 0
@@ -160,7 +160,7 @@ def _schedule_task(task: Task, core: Core, slots: set[slice], slices: set[Slice]
 				# make slices
 			# else break
 
-			slices_buffer.add(Slice(task, core, slice(slot.start + offset, slot.start + offset + task.wcet)))
+			slices_buffer.add(ExecSlice(task, core, exec_window(slot.start + offset, slot.start + offset + task.wcet)))
 
 			if _check_execution_time(task, slices_buffer, hyperperiod):
 				slices |= slices_buffer
