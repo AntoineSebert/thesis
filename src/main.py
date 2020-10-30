@@ -88,6 +88,7 @@ def _create_cli_parser() -> ArgumentParser:
 		'-f', '--format',
 		nargs=1,
 		default=['raw'],
+		type=str,
 		choices=[member.name for member in OutputFormat],
 		help="Output format, either one of: " + ', '.join(member.name for member in OutputFormat),
 		metavar="FORMAT",
@@ -108,7 +109,8 @@ def _create_cli_parser() -> ArgumentParser:
 	parser.add_argument(
 		'-p', '--policy',
 		nargs=1,
-		default=['rm'],
+		default=['edf'],
+		type=str,
 		choices=policies.keys(),
 		help="Scheduling policy, either one of: " + ', '.join(policies.keys()),
 		metavar="POLICY",
