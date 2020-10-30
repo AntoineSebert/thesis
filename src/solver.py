@@ -197,13 +197,44 @@ def _initial_scheduling(initial_mapping: ProcAppMap, problem: Problem) -> CoreSl
 # initial mapping -----------------------------------------------------------------------------------------------------
 
 
+def _get_tasks(core_tasks: CoreTaskMap, core: Core) -> set[Task]:
+	"""Recovers a set of tasks associated with a core.
+
+	Parameters
+	----------
+	core_tasks : CoreTaskMap
+		A mapping of cores to sets of tasks.
+	core : Core
+		A core that is assumed to be present in the `CoreTaskMap`.
+
+	Returns
+	-------
+	set[Task]
+		The set of tasks associated with the core in the `CoreTaskMap`.
+	"""
+
+	tasks = set()
+	changed = False
+
+	for _core, _tasks in core_tasks.items():
+		if _core.id == core.id:
+			tasks = _tasks
+			changed = True
+			break
+
+	if not changed:
+		raise RuntimeError(f"Recovering of the tasks associated with the core '{core.processor.id}/{core.id}' failed")
+
+	return tasks
+
+
 def _try_map(core_tasks: CoreTaskMap, app: App, sched_check: SchedCheck) -> bool:
 	"""Tries to map an application to a processor.
 
 	Parameters
 	----------
 	core_tasks : CoreTaskMap
-		...
+		A mapping of cores to tasks.
 	app : App
 		An application to map.
 	sched_check : SchedCheck
@@ -215,8 +246,6 @@ def _try_map(core_tasks: CoreTaskMap, app: App, sched_check: SchedCheck) -> bool
 		Returns `True` if the application have been mapped, or `False` otherwise.
 	"""
 
-	# bug with rate monotonic ?
-
 	core_pqueue: PriorityQueue = PriorityQueue(maxsize=len(core_tasks.keys()))
 
 	for core in core_tasks.keys():
@@ -224,24 +253,34 @@ def _try_map(core_tasks: CoreTaskMap, app: App, sched_check: SchedCheck) -> bool
 
 	for task in app:
 		core = core_pqueue.get()
+		tasks = _get_tasks(core_tasks, core)  # dirty workaround as `tasks = core_tasks[core]` triggers a KeyError
 
-		changed = False
-		for _core, _tasks in core_tasks.items():
-			if _core.id == core.id:
-				tasks = _tasks
-				changed = True
-		if not changed:
-			raise RuntimeError(f"ffs")
-
-		if len(tasks) == 0 or sched_check(tasks, [core]):
-			tasks.add(task)
-			core.workload += task.workload
-		else:
+		if not (len(tasks) == 0 or sched_check(tasks, [core])):
 			return False
+
+		tasks.add(task)
+		core.workload += task.workload
 
 		core_pqueue.put(core)
 
 	return True
+
+
+def _print_initial_mapping(initial_mapping: ProcAppMap) -> None:
+	"""Prints an initial mapping.
+
+	Parameters
+	----------
+	initial_mapping : ProcAppMap
+		An initial mapping.
+	"""
+
+	for cpu, (apps, core_tasks) in initial_mapping.items():
+		print(cpu.pformat() + '\n\t' + ', '.join(app.name for app in apps))
+		for core, tasks in core_tasks.items():
+			print(core.pformat(1))
+			for task in tasks:
+				print("\t\t" + task.app.name + "/" + str(task.id))
 
 
 def _initial_mapping(problem: Problem) -> ProcAppMap:
@@ -277,12 +316,7 @@ def _initial_mapping(problem: Problem) -> ProcAppMap:
 
 		cpu_pqueue.put(cpu)
 
-	for cpu, (apps, core_tasks) in initial_mapping.items():
-		print(cpu.pformat())
-		for core, tasks in core_tasks.items():
-			print(core.pformat(1))
-			for task in tasks:
-				print("\t\t" + task.app.name + "/" + str(task.id))
+	_print_initial_mapping(initial_mapping)
 
 	return initial_mapping
 
