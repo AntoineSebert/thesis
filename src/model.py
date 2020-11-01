@@ -45,8 +45,11 @@ class Core:
 	def __lt__(self: Core, other: Core) -> bool:
 		return self.workload < other.workload
 
-	def __eq__(self: Core, other: Core) -> bool:
-		return self.id == other.id and self.processor == other.processor
+	def __eq__(self: Core, other: object) -> bool:
+		if isinstance(other, Core):
+			return self.id == other.id and self.processor == other.processor
+		else:
+			return NotImplemented
 
 	def pformat(self: Core, level: int = 0) -> str:
 		return ("\n" + ("\t" * level)
@@ -102,19 +105,21 @@ class Processor(Set, Reversible):
 		return min(self.cores)
 
 	def __lt__(self: Processor, other: object) -> bool:
-		return self.workload() < other.workload()
+		if isinstance(other, Processor):
+			return self.workload() < other.workload()
+		else:
+			return NotImplemented
 
 	def __contains__(self: Processor, item: object) -> bool:
-		if item.processor is self:
-			for core in self.cores:
-				if item.id == core.id:
-					return True
-		return False
+		if isinstance(item, Core):
+			return item.processor is self and item in self.cores
+		else:
+			return NotImplemented
 
-	def __iter__(self: Processor) -> Iterator[Processor]:
+	def __iter__(self: Processor) -> Iterator[Core]:
 		return iter(self.cores)
 
-	def __reversed__(self: Processor) -> Iterator[Processor]:
+	def __reversed__(self: Processor) -> Iterator[Core]:
 		for core in self.cores[::-1]:
 			yield core
 
@@ -171,7 +176,7 @@ class ExecSlice(NamedTuple):
 
 		return self.et.stop - self.et.start
 
-	def __hash__(self: Processor) -> int:
+	def __hash__(self: ExecSlice) -> int:
 		return hash(str(hash(self.task)) + str(hash(self.core)) + str(self.et.start) + str(self.et.stop))
 
 	def pformat(self: ExecSlice, level: int = 0) -> str:
@@ -179,7 +184,7 @@ class ExecSlice(NamedTuple):
 		ii = i + "\t"
 
 		return (f"{i}slice {{{ii}"
-			f"task : {self.task.app().name} / {self.task.id};{ii}"
+			f"task : {self.task.app.name} / {self.task.id};{ii}"
 			f"core : {self.core.processor.id} / {self.core.id};{ii}"
 			f"slice : {self.et} / {self.duration};{i}}}")
 
@@ -330,8 +335,8 @@ class Solution:
 			+ f"\thyperperiod : {self.hyperperiod};" + i
 			+ f"\tscore : {self.score};" + i
 			+ "\tmapping {" + "".join(
-				core().pformat(level + 2) + " : {"
-					+ "".join(_slice().pformat(level + 3) for _slice in slices)
+				core.pformat(level + 2) + " : {"
+					+ "".join(_slice.pformat(level + 3) for _slice in slices)
 				+ i + "\t\t}" for core, slices in self.mapping.items()
 			) + i + "\t}" + i
 			+ "}")

@@ -83,16 +83,18 @@ def _import_graph(filepath: Path, arch: Architecture) -> Graph:
 	for app in et.iter("Application"):
 		apps.append(App(app.get("Name"), set()))
 
-		apps[-1].tasks = [
+		_tasks = [
 			Task(node, apps[-1])
 			for runnable in app.iter("Runnable") if (node := nodes.get(runnable.get("Name"))) is not None
 		]
 
 		if app.get("Inorder") == "true":
-			for i, task in enumerate(apps[-1].tasks[1:]):
-				task.child = apps[-1].tasks[i - 1]
+			for i, task in enumerate(_tasks[1:]):
+				task.child = _tasks[i - 1]
 
-	return Graph(reversed(apps), _compute_hyperperiod(apps))
+		apps[-1].tasks = set(_tasks)
+
+	return Graph(sorted(apps, reverse=True), _compute_hyperperiod(apps))
 
 
 # ENTRY POINT #########################################################################################################

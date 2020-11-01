@@ -64,10 +64,10 @@ class Task:
 	app: App = field(compare=False)
 	wcet: int = field(compare=False)
 	period: int = field(compare=False)
-	# n_slots cached_property : hyperperiod / period
+	# n_slots cached_property : hyperperiod / period, list[exec_window]
 	deadline: int = field(compare=False)
 	criticality: Criticality
-	child: Task = field(compare=False, default=None)
+	child: Task = field(compare=False)
 
 	def __init__(self: Task, node: ElementTree, app: App) -> None:
 		self.id = int(node.get("Id"))
@@ -162,19 +162,21 @@ class App(Set, Reversible):
 		return fsum(task.workload for task in self.tasks)
 
 	def __lt__(self: App, other: object) -> bool:
-		return self.criticality < other.criticality
+		if isinstance(other, App):
+			return self.criticality < other.criticality
+		else:
+			return NotImplemented
 
 	def __contains__(self: App, item: object) -> bool:
-		if item.app is self:
-			for task in self.tasks:
-				if item.id == task.id:
-					return True
-		return False
+		if isinstance(item, Task):
+			return item.app is self and item in self.tasks
+		else:
+			return NotImplemented
 
-	def __iter__(self: App) -> Iterator[App]:
+	def __iter__(self: App) -> Iterator[Task]:
 		return iter(self.tasks)
 
-	def __reversed__(self: App) -> Iterator[App]:
+	def __reversed__(self: App) -> Iterator[Task]:
 		for task in self.tasks[::-1]:
 			yield task
 

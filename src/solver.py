@@ -132,9 +132,9 @@ def _create_slot_map(initial_mapping: ProcAppMap, hyperperiod: int) -> CoreSlotM
 
 
 def _intersect(slice1: ExecSlice, slice2: ExecSlice) -> bool:
-	return slice1.start <= slice2.start <= slice1.stop\
-		or slice1.start <= slice2.stop <= slice1.stop\
-		or (slice2.start <= slice1.start and slice1.stop <= slice2.stop)
+	return slice1.et.start <= slice2.et.start <= slice1.et.stop\
+		or slice1.et.start <= slice2.et.stop <= slice1.et.stop\
+		or (slice2.et.start <= slice1.et.start and slice1.et.stop <= slice2.et.stop)
 
 
 def _check_execution_time(task: Task, slices: set[ExecSlice], hyperperiod: int) -> bool:
@@ -154,7 +154,6 @@ def _schedule_task(task: Task, core: Core, slots: set[exec_window], slices: set[
 			offset = 0
 			# check if conflicts and compute time available
 			for _slice in slices:
-				# pass switch_time depending on same partition or not
 				if _intersect(_slice.et, slot):
 					pass
 			# if total time available > task.wcet
@@ -180,7 +179,7 @@ def _initial_scheduling(initial_mapping: ProcAppMap, problem: Problem) -> CoreSl
 		for crit, task_slots in crit_tasks.items():
 			for task in ordering(task_slots.keys()):
 				# groupby()
-					# for sorted by index
+					# for sorted by index when inorder
 					# generate all slices at once depending on eventual previous task slices
 				if not _schedule_task(task, core, task_slots[task], core_slices[core], problem.graph.hyperperiod):
 					if crit < problem.graph.max_criticality:

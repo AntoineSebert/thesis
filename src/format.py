@@ -174,7 +174,7 @@ def _svg_format(solution: Solution) -> str:
 	title = "Solution for " + str(solution.config.filepaths.tsk)
 
 	svg = fromstringlist([
-		"<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='100%' height='100%' lang='en' version='1.1'>",
+		"<svg width='100%' height='100%' lang='en' version='1.1'>",
 			f"<title>{title}</title>",
 			"<desc>An horizontal chart bar showing the solution to the scheduling problem.</desc>",
 			"<style>",  # https://www.w3.org/TR/SVG2/styling.html
@@ -222,10 +222,10 @@ class OutputFormat(Enum):
 		Callable object mapped to a XML formatter (custom module format).
 	json : partial
 		Callable object mapped to a JSON formatter.
-	raw : partial
-		Callable object mapped to a raw formatter (`solution` is converted into a `str`).
 	svg : partial
 		Callable object mapped to the raw formatter (`solution` is converted into a `str`).
+	raw : partial
+		Callable object mapped to a raw formatter (`solution` is converted into a `str`).
 
 	Methods
 	-------
@@ -235,8 +235,8 @@ class OutputFormat(Enum):
 
 	xml: partial = partial(_xml_format)
 	json: partial = partial(_json_format)
-	raw: partial = partial(_raw_format)
 	svg: partial = partial(_svg_format)
+	raw: partial = partial(_raw_format)
 
 	def __call__(self: Any, solution: Solution) -> str:
 		"""Converts the enumeratino member into the corresponding function call.
