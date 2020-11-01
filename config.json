@@ -1,0 +1,9 @@
+{
+	"format": "svg",
+	"algorithm": "edf",
+	"objective": "min_e2e-cmltd",
+	"verbose": false,
+	"switch_time": 10,
+	"initial_step": 10,
+	"trial_limit": 10
+}

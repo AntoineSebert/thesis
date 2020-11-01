@@ -69,7 +69,7 @@ def _json_format(solution: Solution) -> str:
 def _xml_format(solution: Solution) -> str:
 	"""Formats a solution into a custom XML schema.
 	<scheduling>
-		<config policy="" switch-time=0 objective="">
+		<config algorithm="" switch-time=0 objective="">
 			<files tsk="" tsk="" />
 		</config>
 		<mapping hyperperoid=0 score=0>
@@ -94,9 +94,9 @@ def _xml_format(solution: Solution) -> str:
 
 	scheduling = Element("scheduling")
 	config = SubElement(scheduling, "configuration", {
-		"policy": solution.config.policy,
-		"switch-time": str(solution.config.switch_time),
-		"objective": solution.config.objective,
+		"algorithm": solution.config.params.algorithm,
+		"switch-time": str(solution.config.params.switch_time),
+		"objective": solution.config.params.objective,
 	})
 	config.append(Element("files", {
 		"tsk": str(solution.config.filepaths.tsk),

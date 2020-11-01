@@ -204,28 +204,56 @@ class FilepathPair(NamedTuple):
 		return f"{i}case {{{i}\ttsk: {str(self.tsk)};{i}\tcfg: {str(self.cfg)};{i}}}"
 
 
-CONFIG_JSON = TypeVar('CONFIG_JSON', FilepathPair, int, str)
+class Parameters(NamedTuple):
+	"""Holds the parameters of the scheduler.
+
+	Attributes
+	----------
+	algorithm : str
+		A scheduling algorithm.
+	objective : str
+		An objective.
+	switch_time : int
+		An partition switch time.
+	initial_step : int
+		An initial backtracking step.
+	trial_limit : int
+		A backtracking trial limit.
+	"""
+
+	algorithm: str
+	objective: str
+	switch_time: int
+	initial_step: int
+	trial_limit: int
+
+	def pformat(self: Parameters, level: int = 0) -> str:
+		i = "\n" + ("\t" * level)
+
+		return (f"{i}params {{{i}"
+			f"\talgorithm : {self.algorithm}{i}"
+			f"\tobjective : {self.objective}{i}"
+			f"\tswitch_time : {self.switch_time}{i}"
+			f"\tinitial_step : {self.initial_step}{i}"
+			f"\ttrial_limit : {self.trial_limit};{i}}}")
+
+
+CONFIG_JSON = TypeVar('CONFIG_JSON', dict[str, str], int, str)
 
 
 class Configuration(NamedTuple):
-	"""Binds a `FilepathPair` to a constraint level and a scheduling policy.
+	"""Binds a `FilepathPair` to the scheduler parameters.
 
 	Attributes
 	----------
 	filepaths : FilepathPair
 		A `FilepathPair` from which a `Problem` will be generated.
-	policy : str
-		A scheduling policy.
-	switch_time : int
-		A partition switch time.
-	objective : str
-		An objective function for the optimization step.
+	params: Parameters
+		A set of scheduling parameters.
 	"""
 
 	filepaths: FilepathPair
-	policy: str
-	switch_time: int
-	objective: str
+	params: Parameters
 
 	def json(self: Configuration) -> dict[str, CONFIG_JSON]:
 		return {
@@ -233,17 +261,15 @@ class Configuration(NamedTuple):
 				"tsk": str(self.filepaths.tsk),
 				"cfg": str(self.filepaths.cfg),
 			},
-			"policy": self.policy,
-			"switch time": self.switch_time,
+			"params": str(self.params),
 		}
 
 	def pformat(self: Configuration, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
 
-		return (i + "configuration {"
-			+ self.filepaths.pformat(level + 1)
-			+ f"{i}\tpolicy : {self.policy};"
-			+ f"{i}\tswitch_time : {self.switch_time};{i}}}")
+		return (f"{i}configuration {{"
+			f"{self.filepaths.pformat(level + 1)}{i}"
+			f"\targuments : {self.params.pformat(level + 1)};{i}}}")
 
 
 class Problem(NamedTuple):

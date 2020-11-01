@@ -24,8 +24,8 @@ SchedCheck = Callable[[Collection[Task], Collection[Core]], bool]
 Ordering = Callable[[Iterable[Task]], Iterable[Task]]
 
 
-"""Policy for scheduling, containing the sufficient condition, an ordering function."""
-policies: dict[str, tuple[SchedCheck, Ordering]] = {
+"""Algorithms for scheduling, containing the sufficient condition, an ordering function."""
+algorithms: dict[str, tuple[SchedCheck, Ordering]] = {
 	"edf": (
 		lambda tasks, cores: fsum(task.workload for task in tasks) <= len(cores) * 0.9,
 		lambda tasks: sorted(tasks, key=lambda t: t.deadline),
@@ -173,7 +173,7 @@ def _schedule_task(task: Task, core: Core, slots: set[exec_window], slices: set[
 
 def _initial_scheduling(initial_mapping: ProcAppMap, problem: Problem) -> CoreSliceMap:
 	core_slot_map: CoreSlotMap = _create_slot_map(initial_mapping, problem.graph.hyperperiod)
-	_, ordering = policies[problem.config.policy]
+	_, ordering = algorithms[problem.config.params.algorithm]
 	core_slices: CoreSliceMap = {core: set() for core in core_slot_map.keys()}
 
 	for core, crit_tasks in core_slot_map.items():
@@ -301,7 +301,7 @@ def _initial_mapping(problem: Problem) -> ProcAppMap:
 
 	initial_mapping: ProcAppMap = {}
 	cpu_pqueue: PriorityQueue = PriorityQueue(maxsize=len(problem.arch))
-	sched_check, _ = policies[problem.config.policy]
+	sched_check, _ = algorithms[problem.config.params.algorithm]
 
 	for cpu in problem.arch:
 		cpu_pqueue.put(cpu)

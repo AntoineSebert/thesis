@@ -14,8 +14,9 @@ Static analysis
 
 
 import logging
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from json import load
 from pathlib import Path
 from time import process_time
 from typing import Callable, TypeVar
@@ -26,9 +27,9 @@ from format import OutputFormat
 
 from log import ColoredHandler
 
-from model import Configuration, FilepathPair, Problem, Solution
+from model import Configuration, FilepathPair, Parameters, Problem, Solution
 
-from solver import objectives, policies, solve
+from solver import algorithms, objectives, solve
 
 from tqdm import tqdm  # type: ignore
 
@@ -85,9 +86,18 @@ def _create_cli_parser() -> ArgumentParser:
 	)
 
 	parser.add_argument(
+		'-a', '--algorithm',
+		nargs='?',
+		type=str,
+		choices=algorithms.keys(),
+		help="Scheduling algorithm, either one of: " + ', '.join(algorithms.keys()),
+		metavar="POLICY",
+		dest="algorithm",
+	)
+	parser.add_argument(
 		'-f', '--format',
-		nargs=1,
-		default=['raw'],
+		nargs='?',
+		default=next(iter(OutputFormat)).name,
 		type=str,
 		choices=[member.name for member in OutputFormat],
 		help="Output format, either one of: " + ', '.join(member.name for member in OutputFormat),
@@ -95,9 +105,16 @@ def _create_cli_parser() -> ArgumentParser:
 		dest="format",
 	)
 	parser.add_argument(
+		'-i', '--initial-step',
+		nargs='?',
+		type=int,
+		help="Initial step of the backtracking process.",
+		metavar="INITIAL_STEP",
+		dest="initial_step",
+	)
+	parser.add_argument(
 		'-o', '--objective',
-		nargs=1,
-		default="",
+		nargs='?',
 		type=str,
 		choices=[f"{abbr}-{abbr2}" for abbr, val in objectives.items() for abbr2 in val[1].keys()],
 		help="Objective function to evaluate solutions, either one of: "
@@ -107,23 +124,20 @@ def _create_cli_parser() -> ArgumentParser:
 		dest="objective",
 	)
 	parser.add_argument(
-		'-p', '--policy',
-		nargs=1,
-		default=['edf'],
-		type=str,
-		choices=policies.keys(),
-		help="Scheduling policy, either one of: " + ', '.join(policies.keys()),
-		metavar="POLICY",
-		dest="policy",
-	)
-	parser.add_argument(
 		'-s', '--switch-time',
-		nargs=1,
-		default=10,
+		nargs='?',
 		type=int,
 		help="Partition switch time.",
 		metavar="SWITCH_TIME",
 		dest="switch_time",
+	)
+	parser.add_argument(
+		'-t', '--trial-limit',
+		nargs='?',
+		type=int,
+		help="Backtracking trial limit.",
+		metavar="TRIAL_LIMIT",
+		dest="trial_limit",
 	)
 	parser.add_argument(
 		"--verbose",
@@ -194,6 +208,45 @@ def _get_filepath_pairs(folder_path: Path, recursive: bool = False) -> set[Filep
 	return filepath_pairs
 
 
+def _create_parameters(args: Namespace) -> Parameters:
+	"""Create the scheduling parameters from the CLI and the configuration file.
+	The CLI arguments have priority over the configuration file.
+
+	Parameters
+	----------
+	args : Namespace
+		The CLI arguments.
+
+	Returns
+	-------
+	params : Parameters
+		The scheduling parameters
+	"""
+
+	with open("config.json") as config_file:
+		config = load(config_file)
+
+	_or = lambda base, backup: base if base is not None else backup
+	or_in = lambda d, k, backup: d[k] if k in d else backup
+
+	params = Parameters(
+		_or(args.algorithm, or_in(config, "algorithm", next(iter(algorithms.keys())))),
+		_or(
+			args.objective,
+			or_in(
+				config,
+				"objective",
+				f"{next(iter(objectives.keys()))}-{next(iter(next(iter(objectives.values()))[1].keys()))}",
+			),
+		),
+		_or(args.switch_time, or_in(config, "switch_time", 10)),
+		_or(args.initial_step, or_in(config, "initial_step", 10)),
+		_or(args.trial_limit, or_in(config, "trial_limit", 10)),
+	)
+
+	return params
+
+
 INPUT = TypeVar('INPUT', Configuration, Problem, Solution)
 OUTPUT = TypeVar('OUTPUT', Problem, Solution, str)
 
@@ -239,8 +292,8 @@ def main() -> int:
 
 	args = _create_cli_parser().parse_args()
 	logging.getLogger().addHandler(ColoredHandler(verbose=args.verbose))
-
-	filepath_pairs = _get_filepath_pairs(args.case, False) if args.case else _get_filepath_pairs(args.collection, True)
+	filepath_pairs = _get_filepath_pairs(args.case) if args.case else _get_filepath_pairs(args.collection, True)
+	params = _create_parameters(args)
 
 	if not filepath_pairs:
 		raise FileNotFoundError("No matching files found. At least one *.tsk file and one *.cfg file are necessary.")
@@ -249,18 +302,13 @@ def main() -> int:
 		filepath_pair.tsk.name + "\t" + filepath_pair.cfg.name for filepath_pair in filepath_pairs
 	))
 
-	operations = [build, solve, OutputFormat[args.format[0]]]
+	operations = [build, solve, OutputFormat[args.format]]  # add evaluation
 
 	with ThreadPoolExecutor(max_workers=len(filepath_pairs)) as executor,\
 		tqdm(total=len(filepath_pairs) * len(operations)) as pbar:
 
 		futures = [
-			executor.submit(
-				_wrapper,
-				Configuration(filepath_pair, args.policy[0], args.switch_time, args.objective),
-				pbar,
-				operations,
-			)
+			executor.submit(_wrapper, Configuration(filepath_pair, params), pbar, operations)
 			for filepath_pair in filepath_pairs
 		]
 		results = [future.result() for future in as_completed(futures)]
