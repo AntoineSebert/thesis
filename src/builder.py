@@ -10,7 +10,7 @@ from pathlib import Path
 
 from defusedxml import ElementTree  # type: ignore
 
-from graph_model import App, Graph, Task
+from graph_model import App, Graph, Job, Task
 
 from model import Architecture, Configuration, Core, Problem, Processor
 
@@ -62,6 +62,31 @@ def _compute_hyperperiod(apps: list[App]) -> int:
 	return lcm(*periods)
 
 
+def _create_jobs(apps: list[App], hyperperiod: int) -> list[App]:
+	"""Create the jobs for the tasks in all applications.
+	If local hyperperiods were to be implemented, this step should be moved at the end of the initial mapping.
+
+	Parameters
+	----------
+	apps : list[App]
+		A list of applications.
+	hyperperiod : int
+		A hyperperiod.
+
+	Returns
+	-------
+	apps : list[App]
+		A list of applications whose tasks have been populated with jobs.
+	"""
+
+	for app in apps:
+		for task in app:
+			for i in range(int(hyperperiod / task.period)):
+				task.jobs.add(Job(task, slice(i * task.period, (i * task.period) + task.deadline), set()))
+
+	return apps
+
+
 def _import_graph(filepath: Path, arch: Architecture) -> Graph:
 	"""Creates the graph from the tasks file, then returns it.
 
@@ -94,7 +119,9 @@ def _import_graph(filepath: Path, arch: Architecture) -> Graph:
 
 		apps[-1].tasks = set(_tasks)
 
-	return Graph(sorted(apps, reverse=True), _compute_hyperperiod(apps))
+	hyperperiod = _compute_hyperperiod(apps)
+
+	return Graph(sorted(_create_jobs(apps, hyperperiod), reverse=True), hyperperiod)
 
 
 # ENTRY POINT #########################################################################################################

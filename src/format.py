@@ -11,7 +11,9 @@ from queue import PriorityQueue
 from typing import Any
 from xml.etree.ElementTree import Element, SubElement, dump, fromstringlist, indent, register_namespace, tostring
 
-from model import ExecSlice, Path, Solution
+from graph_model import Job
+
+from model import Path, Solution
 
 from timed import timed_callable
 
@@ -108,26 +110,26 @@ def _xml_format(solution: Solution) -> str:
 		"score": str(solution.score),
 	})
 
-	cpus: dict[int, dict[int, list[ExecSlice]]] = {}
+	cpus: dict[int, dict[int, list[Job]]] = {}
 
-	for core, slices in solution.mapping.items():
+	for core, jobs in solution.mapping.items():
 		if core.processor.id in cpus:
-			cpus[core.processor.id][core.id] = slices
+			cpus[core.processor.id][core.id] = jobs
 		else:
-			cpus[core.processor.id] = {core.id: slices}
+			cpus[core.processor.id] = {core.id: jobs}
 
 	for cpu_id, cores in cpus.items():
 		cpu = SubElement(mapping, "processor", {"id": f"cpu-{cpu_id}"})
-		for core_id, slices in cores.items():
+		for core_id, jobs in cores.items():
 			_core = SubElement(cpu, "core", {"id": f"core-{core_id}"})
 			_core.extend([
 				Element("slice", {
-					"start": str(_slice.et.start),
-					"stop": str(_slice.et.stop),
-					"duration": str(_slice.duration),
-					"app": _slice().task.app.name,
-					"task": str(_slice.task.id),
-				}) for _slice in slices
+					"start": str(job.exec_window.start),
+					"stop": str(job.exec_window.stop),
+					"duration": str(job.duration),
+					"app": job.task.app.name,
+					"task": str(job.task.id),
+				}) for job in jobs
 			])
 
 	indent(scheduling, space="\t")

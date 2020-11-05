@@ -38,8 +38,86 @@ class Criticality(IntEnum):
 	sta_4 = 4
 
 
-@dataclass(order=True)
-class Task:
+@dataclass
+@total_ordering
+class Job(Set, Reversible):
+	"""Represents an execution slice of a task.
+
+	Attributes
+	----------
+	task : Task
+		The task the job belongs to.
+	exec_window: slice
+		The window execution time, representing (activation_time, activation_time + deadline).
+	execution: set[slice]
+		Set of execution slices.
+	"""
+
+	task: Task
+	exec_window: slice
+	execution: set[slice]
+
+	@cached_property
+	def duration(self: Job) -> int:
+		"""Computes and caches the duration of the slice.
+		Parameters
+		----------
+		self : ExecSlice
+			The instance of `ExecSlice`.
+		Returns
+		-------
+		int
+			The duration of the slice.
+		"""
+
+		return self.exec_window.stop - self.exec_window.start
+
+	def __eq__(self: Job, other: object) -> bool:
+		if isinstance(other, Job):
+			return self.task == other.task and self.exec_window == other.exec_window
+		else:
+			return NotImplemented
+
+	def __lt__(self: Job, other: object) -> bool:
+		if isinstance(other, Job):
+			return self.exec_window.start < other.exec_window.start
+		else:
+			return NotImplemented
+
+	def __contains__(self: Job, item: object) -> bool:
+		if isinstance(item, slice):
+			return item in self.execution
+		else:
+			return NotImplemented
+
+	def __iter__(self: Job) -> Iterator[slice]:
+		return iter(self.execution)
+
+	def __reversed__(self: Job) -> Iterator[slice]:
+		for task in self.execution[::-1]:
+			yield task
+
+	def __len__(self: Job) -> int:
+		return len(self.execution)
+
+	def __hash__(self: Job) -> int:
+		return hash(str(self.task) + str(self.exec_window.start) + str(self.exec_window.stop) + str(self.execution))
+
+	def pformat(self: Job, level: int = 0) -> str:
+		i = "\n" + ("\t" * level)
+		ii = i + "\t"
+
+		return (f"{i}job {{{ii}"
+			f"task : {self.task.app.name} / {self.task.id};{ii}"
+			f"exec_window : {self.exec_window} / {self.duration};{ii}"
+			f"execution {{{ii}"
+			+ "".join(f"{ii}{_slice};" for _slice in self.execution)
+			+ ii + "}" + i + "}")
+
+
+@dataclass
+@total_ordering
+class Task(Set, Reversible):
 	"""Represents a task.
 
 	Attributes
@@ -56,18 +134,20 @@ class Task:
 		The deadline of the node.
 	criticality : Criticality
 		The criticality level, [0; 4].
+	jobs : set[Job]
+		A set of n instances of the task, with n = int(wcet / hyperperiod).
 	child : Task
 		A list of tasks to be completed before starting.
 	"""
 
-	id: int = field(compare=False)
-	app: App = field(compare=False)
-	wcet: int = field(compare=False)
-	period: int = field(compare=False)
-	# n_slots cached_property : hyperperiod / period, list[exec_window]
-	deadline: int = field(compare=False)
+	id: int
+	app: App
+	wcet: int
+	period: int
+	deadline: int
 	criticality: Criticality
-	child: Task = field(compare=False)
+	jobs: set[Job]
+	child: Task
 
 	def __init__(self: Task, node: ElementTree, app: App) -> None:
 		self.id = int(node.get("Id"))
@@ -76,9 +156,55 @@ class Task:
 		self.period = int(node.find("Period").get("Value"))
 		self.deadline = int(node.get("Deadline"))
 		self.criticality = Criticality(int(node.get("CIL")))
+		self.jobs = set()
+		self.child = None
+
+	def __eq__(self: Task, other: object) -> bool:
+		if isinstance(other, Task):
+			return self.id == other.id and self.app == other.app
+		else:
+			return NotImplemented
+
+	def __lt__(self: Task, other: object) -> bool:
+		if isinstance(other, Task):
+			return self.criticality < other.criticality
+		else:
+			return NotImplemented
+
+	def __contains__(self: Task, item: object) -> bool:
+		if isinstance(item, Job):
+			return item.task is self and item in self.jobs
+		else:
+			return NotImplemented
+
+	def __iter__(self: Task) -> Iterator[Job]:
+		return iter(self.jobs)
+
+	def __reversed__(self: Task) -> Iterator[Job]:
+		for task in self.jobs[::-1]:
+			yield task
+
+	def __len__(self: Task) -> int:
+		return len(self.jobs)
 
 	def __hash__(self: Task) -> int:
 		return hash(str(self.id) + self.app.name)
+
+	def execution_time(self: Task) -> int:
+		"""Computes the total execution time of the task, should be equal to int(hyperperiod / task.period) * task.wcet.
+
+		Parameters
+		----------
+		self : Task
+			The instance of `Task`.
+
+		Returns
+		-------
+		int
+			The total execution time.
+		"""
+
+		return sum(job.duration for job in self.jobs)
 
 	@cached_property
 	def workload(self: Task) -> float:
@@ -99,15 +225,17 @@ class Task:
 
 	def pformat(self: Task, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
+		ii = i + "\t"
 
-		return (i + "task {" + i
-			+ f"\tid : {self.id};{i}"
-			f"\tapp : {self.app.name};{i}"
-			f"\twcet : {self.wcet};{i}"
-			f"\tperiod : {self.period};{i}"
-			f"\tdeadline : {self.deadline};{i}"
-			f"\tcriticality : {int(self.criticality)};{i}"
-			+ (f"\tchild : {self.child.id};{i}}}" if self.child is not None else "}"))
+		return (i + "task {" + ii
+			+ f"id : {self.id};{ii}"
+			f"app : {self.app.name};{ii}"
+			f"wcet : {self.wcet};{ii}"
+			f"period : {self.period};{ii}"
+			f"deadline : {self.deadline};{ii}"
+			f"criticality : {int(self.criticality)};{ii}"
+			f"jobs {{" + "".join(job.pformat(level + 2) for job in self.jobs) + ii + "}"
+			+ (f"{ii}child : {self.child.id};{i}}}" if self.child is not None else i + "}"))
 
 
 @dataclass(eq=True)

@@ -4,13 +4,14 @@
 # IMPORTS #############################################################################################################
 
 import logging
+from itertools import chain, groupby
 from math import fsum
 from queue import PriorityQueue
 from typing import Callable, Collection, Iterable, Union
 
-from graph_model import App, Criticality, Task
+from graph_model import App, Job, Task
 
-from model import Core, ExecSlice, Mapping, Problem, Processor, Solution, exec_window
+from model import Core, Mapping, Problem, Processor, Solution
 
 from timed import timed_callable
 
@@ -72,18 +73,11 @@ objectives = {
 	),
 }
 
-"""A mapping of cores as keys, to a tuple of tasks and a workload as values."""
+"""Maps a core to a set of tasks."""
 CoreTaskMap = dict[Core, set[Task]]
 
-"""A mapping of processors to applications maps, representing the inital mapping."""
+"""Maps a processor to a tuple of set of applications and core map."""
 ProcAppMap = dict[Processor, tuple[set[App], CoreTaskMap]]
-
-"""..."""
-SlotMap = dict[Criticality, dict[Task, set[exec_window]]]
-CoreSlotMap = dict[Core, SlotMap]
-
-"""..."""
-CoreSliceMap = dict[Core, set[ExecSlice]]
 
 
 # FUNCTIONS ###########################################################################################################
@@ -106,96 +100,98 @@ def _feasible_scheduling(initial_solution: Mapping) -> Mapping:
 # initial scheduling --------------------------------------------------------------------------------------------------
 
 
-def _get_slots(task: Task, hyperperiod: int) -> set[exec_window]:
-	return [exec_window(i * task.period, (i * task.period) + task.deadline) for i in range(int(hyperperiod / task.period))]
+def _intersect(slice1: slice, slice2: slice) -> bool:
+	return slice1.start <= slice2.start <= slice1.stop or slice1.start <= slice2.stop <= slice1.stop\
+		or (slice2.start <= slice1.start and slice1.stop <= slice2.stop)
 
 
-def _create_task_slots(core: Core, tasks: set[Task], hyperperiod: int) -> SlotMap:
-	slot_map: SlotMap = {}
-
-	for task in tasks:
-		if task.criticality not in slot_map:
-			slot_map[task.criticality] = {}
-		slot_map[task.criticality][task] = _get_slots(task, hyperperiod)
-
-	return dict(sorted(slot_map.items(), key=lambda x: x[0], reverse=True))
-
-
-def _create_slot_map(initial_mapping: ProcAppMap, hyperperiod: int) -> CoreSlotMap:
-	core_slot_map: CoreSlotMap = {}
-
-	for _cpu, (_apps, core_tasks) in initial_mapping.items():
-		for core, tasks in core_tasks.items():
-			core_slot_map[core] = _create_task_slots(core, tasks, hyperperiod)
-
-	return core_slot_map
-
-
-def _intersect(slice1: ExecSlice, slice2: ExecSlice) -> bool:
-	return slice1.et.start <= slice2.et.start <= slice1.et.stop\
-		or slice1.et.start <= slice2.et.stop <= slice1.et.stop\
-		or (slice2.et.start <= slice1.et.start and slice1.et.stop <= slice2.et.stop)
-
-
-def _check_execution_time(task: Task, slices: set[ExecSlice], hyperperiod: int) -> bool:
-	return int(hyperperiod / task.period) * task.wcet == sum(_slice.et.stop - _slice.et.start for _slice in slices)
-
-
-def _schedule_task(task: Task, core: Core, slots: set[exec_window], slices: set[ExecSlice], hyperperiod: int) -> bool:
+def _schedule_task(task: Task, core: Core, jobs: set[Job], hyperperiod: int) -> bool:
 	# assign offset for each slot
-	if len(slices) == 0:
-		slices = {ExecSlice(task, core, exec_window(slot.start, slot.start + task.wcet)) for slot in slots}
+	if len(task) == 0:
+		for job in task:
+			job.execution.add(slice(job.exec_window.start, job.exec_window.start + task.wcet))
 
 		return True
 	else:
-		slices_buffer: set[ExecSlice] = set()
+		jobs_buffer: set[Job] = set()
 
-		for slot in slots:
+		"""
+		for c_job in jobs:
 			offset = 0
 			# check if conflicts and compute time available
-			for _slice in slices:
-				if _intersect(_slice.et, slot):
+			for t_job in task:
+				if _intersect(t_job.exec_window, c_job.exec_window):
 					pass
 			# if total time available > task.wcet
 				# make slices
 			# else break
 
-			slices_buffer.add(ExecSlice(task, core, exec_window(slot.start + offset, slot.start + offset + task.wcet)))
+			jobs_buffer.add(Job(task, core, exec_window(slot.start + offset, slot.start + offset + task.wcet)))
 
-			if _check_execution_time(task, slices_buffer, hyperperiod):
-				slices |= slices_buffer
+			if int(hyperperiod / task.period) * task.wcet == task.execution_time():
+				task.jobs |= jobs_buffer
 
 				return True
 			else:
 				return False
+		"""
 
 
-def _initial_scheduling(initial_mapping: ProcAppMap, problem: Problem) -> CoreSliceMap:
-	core_slot_map: CoreSlotMap = _create_slot_map(initial_mapping, problem.graph.hyperperiod)
+def _initial_scheduling(initial_mapping: ProcAppMap, problem: Problem) -> CoreTaskMap:
 	_, ordering = algorithms[problem.config.params.algorithm]
-	core_slices: CoreSliceMap = {core: set() for core in core_slot_map.keys()}
+	flat_cores_tasks = {
+		core: tasks for core_tasks in chain(
+			core_tasks for _apps, core_tasks in initial_mapping.values()
+		) for core, tasks in core_tasks.items()
+	}
 
-	for core, crit_tasks in core_slot_map.items():
-		for crit, task_slots in crit_tasks.items():
-			for task in ordering(task_slots.keys()):
-				# groupby()
-					# for sorted by index when inorder
-					# generate all slices at once depending on eventual previous task slices
+	# sort by crit, tasks
+	# while True
+		# modified = 0
+		# for task in tasks
+			# put if task has child and is after child
+			# put it before
+			# modified += 1
+		# if modified != 0
+			# break
+
+	for core, tasks in flat_cores_tasks.items():
+		print(core.pformat())
+		for crit, _tasks in groupby(sorted(tasks, reverse=True), lambda t: t.criticality):
+			print(f"\tcrit : {crit}")
+			# for sorted by index when inorder
+			for task in ordering(_tasks):
+				print("\t\t" + task.app.name + "/" + str(task.id) + ((", " + str(task.child.id)) if task.child is not None else ""))
+				# generate all slices at once depending on eventual previous task slices
+				"""
 				if not _schedule_task(task, core, task_slots[task], core_slices[core], problem.graph.hyperperiod):
 					if crit < problem.graph.max_criticality:
 						pass  # backtrack
 					else:
 						raise RuntimeError(f"Initial scheduling failed with task : '{task.app.name}/{task.id}'")
-	"""
-	for core, slices in core_slices.items():
-		print(core.pformat())
-		print('\t' + '\n\t'.join(f"{_slice.task.app.name}/{_slice.task.id}:{_slice.et}" for _slice in slices))
-	"""
+				"""
 
-	return core_slices
+	return flat_cores_tasks
 
 
 # initial mapping -----------------------------------------------------------------------------------------------------
+
+
+def _print_initial_mapping(initial_mapping: ProcAppMap) -> None:
+	"""Prints an initial mapping.
+
+	Parameters
+	----------
+	initial_mapping : ProcAppMap
+		An initial mapping.
+	"""
+
+	for cpu, (apps, core_tasks) in initial_mapping.items():
+		print(cpu.pformat() + '\n\t' + ', '.join(app.name for app in apps))
+		for core, tasks in core_tasks.items():
+			print(core.pformat(1))
+			for task in tasks:
+				print("\t\t" + task.app.name + "/" + str(task.id))
 
 
 def _get_tasks(core_tasks: CoreTaskMap, core: Core) -> set[Task]:
@@ -265,23 +261,6 @@ def _try_map(core_tasks: CoreTaskMap, app: App, sched_check: SchedCheck) -> bool
 		core_pqueue.put(core)
 
 	return True
-
-
-def _print_initial_mapping(initial_mapping: ProcAppMap) -> None:
-	"""Prints an initial mapping.
-
-	Parameters
-	----------
-	initial_mapping : ProcAppMap
-		An initial mapping.
-	"""
-
-	for cpu, (apps, core_tasks) in initial_mapping.items():
-		print(cpu.pformat() + '\n\t' + ', '.join(app.name for app in apps))
-		for core, tasks in core_tasks.items():
-			print(core.pformat(1))
-			for task in tasks:
-				print("\t\t" + task.app.name + "/" + str(task.id))
 
 
 def _initial_mapping(problem: Problem) -> ProcAppMap:

@@ -8,13 +8,14 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Reversible, Set
 from dataclasses import dataclass, field
-from functools import cached_property, total_ordering
+from functools import total_ordering
 from math import fsum
 from pathlib import Path
 from typing import NamedTuple, TypeVar
 
+from graph_model import Graph, Job
 
-from graph_model import Graph, Task
+from sortedcontainers import SortedSet  # type: ignore
 
 
 # CLASSES AND TYPE ALIASES ############################################################################################
@@ -139,56 +140,6 @@ class Processor(Set, Reversible):
 Architecture = set[Processor]
 
 
-exec_window = slice
-
-
-class ExecSlice(NamedTuple):
-	"""Represents an execution slice of a task.
-
-	Attributes
-	----------
-	task : Task
-		The task the slice belongs to.
-	core : Core
-		The core the slice is scheduled on.
-	et : exec_window
-		The window execution time.
-	"""
-
-	task: Task
-	core: Core
-	et: exec_window
-
-	@cached_property
-	def duration(self: ExecSlice) -> int:
-		"""Computes and caches the duration of the slice.
-
-		Parameters
-		----------
-		self : ExecSlice
-			The instance of `ExecSlice`.
-
-		Returns
-		-------
-		int
-			The duration of the slice.
-		"""
-
-		return self.et.stop - self.et.start
-
-	def __hash__(self: ExecSlice) -> int:
-		return hash(str(hash(self.task)) + str(hash(self.core)) + str(self.et.start) + str(self.et.stop))
-
-	def pformat(self: ExecSlice, level: int = 0) -> str:
-		i = "\n" + ("\t" * level)
-		ii = i + "\t"
-
-		return (f"{i}slice {{{ii}"
-			f"task : {self.task.app.name} / {self.task.id};{ii}"
-			f"core : {self.core.processor.id} / {self.core.id};{ii}"
-			f"slice : {self.et} / {self.duration};{i}}}")
-
-
 class FilepathPair(NamedTuple):
 	"""Holds a `FilepathPair` to a `*.tsk` and a `*.cfg` file, representing a test case.
 
@@ -303,7 +254,7 @@ class Problem(NamedTuple):
 
 
 """A mapping of cores to slices, representing the inital mapping."""
-Mapping = dict[Core, list[ExecSlice]]
+Mapping = dict[Core, list[Job]]
 
 
 @dataclass
