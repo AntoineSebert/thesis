@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 
-from collections.abc import Iterator, Reversible, Set
+from collections.abc import Iterator, Reversible, Sequence, Set
 from dataclasses import dataclass, field
 from enum import IntEnum, unique
 from functools import cached_property, total_ordering
@@ -15,6 +15,8 @@ from math import fsum
 from typing import NamedTuple
 
 from defusedxml import ElementTree  # type: ignore
+
+from sortedcontainers import SortedSet  # type: ignore
 
 
 # CLASSES #############################################################################################################
@@ -49,28 +51,27 @@ class Job(Set, Reversible):
 		The task the job belongs to.
 	exec_window: slice
 		The window execution time, representing (activation_time, activation_time + deadline).
-	execution: set[slice]
+	execution: list[slice]
 		Set of execution slices.
 	"""
 
 	task: Task
 	exec_window: slice
-	execution: set[slice]
+	execution: list[slice]
 
-	@cached_property
 	def duration(self: Job) -> int:
 		"""Computes and caches the duration of the slice.
 		Parameters
 		----------
-		self : ExecSlice
-			The instance of `ExecSlice`.
+		self : Job
+			The instance of `Job`.
 		Returns
 		-------
 		int
-			The duration of the slice.
+			The duration of the job.
 		"""
 
-		return self.exec_window.stop - self.exec_window.start
+		return sum(_slice.stop - _slice.start for _slice in self.execution) if len(self.execution) != 0 else 0
 
 	def __eq__(self: Job, other: object) -> bool:
 		if isinstance(other, Job):
@@ -94,8 +95,7 @@ class Job(Set, Reversible):
 		return iter(self.execution)
 
 	def __reversed__(self: Job) -> Iterator[slice]:
-		for task in self.execution[::-1]:
-			yield task
+		return reversed(self.execution)
 
 	def __len__(self: Job) -> int:
 		return len(self.execution)
@@ -103,16 +103,17 @@ class Job(Set, Reversible):
 	def __hash__(self: Job) -> int:
 		return hash(str(self.task) + str(self.exec_window.start) + str(self.exec_window.stop) + str(self.execution))
 
+	def short(self: Job) -> str:
+		return f"{self.task.short()} [{self.exec_window.start} - {self.exec_window.stop}]"
+
 	def pformat(self: Job, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
 		ii = i + "\t"
 
 		return (f"{i}job {{{ii}"
 			f"task : {self.task.app.name} / {self.task.id};{ii}"
-			f"exec_window : {self.exec_window} / {self.duration};{ii}"
-			f"execution {{{ii}"
-			+ "".join(f"{ii}{_slice};" for _slice in self.execution)
-			+ ii + "}" + i + "}")
+			f"exec_window : {self.exec_window} / {self.duration()};{ii}"
+			f"execution {{" + "".join(f"{ii}\t{_slice};" for _slice in self.execution) + ii + "}" + i + "}")
 
 
 @dataclass
@@ -134,9 +135,9 @@ class Task(Set, Reversible):
 		The deadline of the node.
 	criticality : Criticality
 		The criticality level, [0; 4].
-	jobs : set[Job]
+	jobs : SortedSet[Job]
 		A set of n instances of the task, with n = int(wcet / hyperperiod).
-	child : Task
+	parent : Task
 		A list of tasks to be completed before starting.
 	"""
 
@@ -146,8 +147,8 @@ class Task(Set, Reversible):
 	period: int
 	deadline: int
 	criticality: Criticality
-	jobs: set[Job]
-	child: Task
+	jobs: SortedSet[Job]
+	parent: Task
 
 	def __init__(self: Task, node: ElementTree, app: App) -> None:
 		self.id = int(node.get("Id"))
@@ -156,8 +157,8 @@ class Task(Set, Reversible):
 		self.period = int(node.find("Period").get("Value"))
 		self.deadline = int(node.get("Deadline"))
 		self.criticality = Criticality(int(node.get("CIL")))
-		self.jobs = set()
-		self.child = None
+		self.jobs = SortedSet()
+		self.parent = None
 
 	def __eq__(self: Task, other: object) -> bool:
 		if isinstance(other, Task):
@@ -181,8 +182,7 @@ class Task(Set, Reversible):
 		return iter(self.jobs)
 
 	def __reversed__(self: Task) -> Iterator[Job]:
-		for task in self.jobs[::-1]:
-			yield task
+		return reversed(self.jobs)
 
 	def __len__(self: Task) -> int:
 		return len(self.jobs)
@@ -223,6 +223,9 @@ class Task(Set, Reversible):
 
 		return self.wcet / self.period
 
+	def short(self: Task) -> str:
+		return f"{self.app.name} / {self.id}"
+
 	def pformat(self: Task, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
 		ii = i + "\t"
@@ -235,24 +238,27 @@ class Task(Set, Reversible):
 			f"deadline : {self.deadline};{ii}"
 			f"criticality : {int(self.criticality)};{ii}"
 			f"jobs {{" + "".join(job.pformat(level + 2) for job in self.jobs) + ii + "}"
-			+ (f"{ii}child : {self.child.id};{i}}}" if self.child is not None else i + "}"))
+			+ (f"{ii}parent : {self.parent.id};{i}}}" if self.parent is not None else i + "}"))
 
 
 @dataclass(eq=True)
 @total_ordering
-class App(Set, Reversible):
-	"""An application. Mutable.
+class App(Sequence, Reversible):
+	"""An application.
 
 	Attributes
 	----------
 	name : str
 		The name of the Application.
-	tasks : set[Task]
+	tasks : list[Task]
 		The tasks within the Application.
+	order : bool
+		Whether or not the order of tasks is significant. Could also be obtained by `self.tasks[:-1].parent is not None`.
 	"""
 
 	name: str
-	tasks: set[Task] = field(compare=False)  # non-deterministic order
+	tasks: list[Task] = field(compare=False)
+	order: bool
 
 	@cached_property
 	def criticality(self: App) -> Criticality:
@@ -295,6 +301,9 @@ class App(Set, Reversible):
 		else:
 			return NotImplemented
 
+	def __getitem__(self: App, key: int) -> Task:
+		return self.tasks.__getitem__(key)
+
 	def __contains__(self: App, item: object) -> bool:
 		if isinstance(item, Task):
 			return item.app is self and item in self.tasks
@@ -305,8 +314,7 @@ class App(Set, Reversible):
 		return iter(self.tasks)
 
 	def __reversed__(self: App) -> Iterator[Task]:
-		for task in self.tasks[::-1]:
-			yield task
+		return reversed(self.tasks)
 
 	def __len__(self: App) -> int:
 		return len(self.tasks)
@@ -328,16 +336,15 @@ class Graph(NamedTuple):
 
 	Attributes
 	----------
-	apps : list[App]
+	apps : SortedSet[App]
 		The applications to schedule.
 	hyperperiod : int
 		The hyperperiod length for this `Graph`, the least common divisor of the periods of all tasks.
 	"""
 
-	apps: list[App]
+	apps: SortedSet[App]
 	hyperperiod: int
 
-	@cached_property
 	def max_criticality(self: Graph) -> Criticality:
 		"""Computes and caches the maximal criticality within the apps.
 

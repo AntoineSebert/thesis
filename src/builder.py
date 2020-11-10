@@ -14,6 +14,8 @@ from graph_model import App, Graph, Job, Task
 
 from model import Architecture, Configuration, Core, Problem, Processor
 
+from sortedcontainers import SortedSet  # type: ignore
+
 from timed import timed_callable
 
 
@@ -37,7 +39,7 @@ def _import_arch(filepath: Path) -> Architecture:
 	arch: list[Processor] = []
 
 	for cpu in ElementTree.parse(filepath).iter("Cpu"):
-		arch.append(Processor(int(cpu.get("Id")), set()))
+		arch.append(Processor(int(cpu.get("Id")), SortedSet()))
 		arch[-1].cores = {Core(int(core.get("Id")), arch[-1]) for core in cpu}
 
 	return set(arch)
@@ -62,7 +64,7 @@ def _compute_hyperperiod(apps: list[App]) -> int:
 	return lcm(*periods)
 
 
-def _create_jobs(apps: list[App], hyperperiod: int) -> list[App]:
+def _create_jobs(apps: list[App], hyperperiod: int) -> SortedSet[App]:
 	"""Create the jobs for the tasks in all applications.
 	If local hyperperiods were to be implemented, this step should be moved at the end of the initial mapping.
 
@@ -82,7 +84,7 @@ def _create_jobs(apps: list[App], hyperperiod: int) -> list[App]:
 	for app in apps:
 		for task in app:
 			for i in range(int(hyperperiod / task.period)):
-				task.jobs.add(Job(task, slice(i * task.period, (i * task.period) + task.deadline), set()))
+				task.jobs.add(Job(task, slice(i * task.period, ((i + 1) * task.period) - 1), []))
 
 	return apps
 
@@ -106,22 +108,23 @@ def _import_graph(filepath: Path, arch: Architecture) -> Graph:
 	apps: list[App] = []
 
 	for app in et.iter("Application"):
-		apps.append(App(app.get("Name"), set()))
+		apps.append(App(app.get("Name"), [], False))
 
-		_tasks = [
+		tasks = [
 			Task(node, apps[-1])
 			for runnable in app.iter("Runnable") if (node := nodes.get(runnable.get("Name"))) is not None
 		]
 
 		if app.get("Inorder") == "true":
-			for i, task in enumerate(_tasks[1:]):
-				task.child = _tasks[i - 1]
+			apps[-1].order = True
+			for i, task in enumerate(tasks[1:]):
+				task.parent = tasks[i]
 
-		apps[-1].tasks = set(_tasks)
+		apps[-1].tasks = tasks
 
 	hyperperiod = _compute_hyperperiod(apps)
 
-	return Graph(sorted(_create_jobs(apps, hyperperiod), reverse=True), hyperperiod)
+	return Graph(_create_jobs(apps, hyperperiod), hyperperiod)
 
 
 # ENTRY POINT #########################################################################################################

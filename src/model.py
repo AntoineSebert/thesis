@@ -52,6 +52,9 @@ class Core:
 		else:
 			return NotImplemented
 
+	def short(self: Core) -> str:
+		return f"{self.processor.id} / {self.id}"
+
 	def pformat(self: Core, level: int = 0) -> str:
 		return ("\n" + ("\t" * level)
 			+ f"core {{ id : {self.id}; processor : {self.processor.id}; workload: {self.workload}; }}")
@@ -66,12 +69,12 @@ class Processor(Set, Reversible):
 	----------
 	id : int
 		The processor within an `Architecture`.
-	cores : set[Core]
+	cores : SortedSet[Core]
 		The set containing the `Core` objects within the Processor.
 	"""
 
 	id: int
-	cores: set[Core] = field(compare=False)
+	cores: SortedSet[Core] = field(compare=False)
 
 	def workload(self: Processor) -> float:
 		""" The workload of the processor.
@@ -121,8 +124,7 @@ class Processor(Set, Reversible):
 		return iter(self.cores)
 
 	def __reversed__(self: Processor) -> Iterator[Core]:
-		for core in self.cores[::-1]:
-			yield core
+		return reversed(self.cores)
 
 	def __len__(self: Processor) -> int:
 		return len(self.cores)
