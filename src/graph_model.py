@@ -49,15 +49,21 @@ class Job(Set, Reversible):
 	----------
 	task : Task
 		The task the job belongs to.
-	exec_window: slice
+	exec_window : slice
 		The window execution time, representing (activation_time, activation_time + deadline).
-	execution: list[slice]
+	execution : list[slice]
 		Set of execution slices.
+	offset : int
+		The earliest start time within the execution window.
+	local_deadline : int
+		The local deadline within the execution window.
 	"""
 
 	task: Task
 	exec_window: slice
 	execution: list[slice]
+	offset: int = 0
+	local_deadline: int = 0
 
 	def duration(self: Job) -> int:
 		"""Computes and caches the duration of the slice.
@@ -302,7 +308,7 @@ class App(Sequence, Reversible):
 			return NotImplemented
 
 	def __getitem__(self: App, key: int) -> Task:
-		return self.tasks.__getitem__(key)
+		return self.tasks[key]
 
 	def __contains__(self: App, item: object) -> bool:
 		if isinstance(item, Task):

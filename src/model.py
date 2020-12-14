@@ -11,9 +11,9 @@ from dataclasses import dataclass, field
 from functools import total_ordering
 from math import fsum
 from pathlib import Path
-from typing import NamedTuple, TypeVar
+from typing import Callable, Collection, Iterable, NamedTuple, TypeVar, Union
 
-from graph_model import Graph, Job
+from graph_model import App, Criticality, Graph, Job, Task
 
 from sortedcontainers import SortedSet  # type: ignore
 
@@ -255,7 +255,7 @@ class Problem(NamedTuple):
 			+ self.graph.pformat(level + 1) + i + "}\n")
 
 
-"""A mapping of cores to slices, representing the inital mapping."""
+"""A mapping of cores to jobs, representing the inital mapping."""
 Mapping = dict[Core, list[Job]]
 
 
@@ -265,18 +265,15 @@ class Solution:
 
 	Attributes
 	----------
-	config: Configuration
-		A configuration for a scheduling problem.
-	hyperperiod : int
-		The hyperperiod length for this `Solution`.
+	problem : Problem
+		A scheduling problem.
 	score : int
 		The score of a Solution regarding an objective function.
 	mapping : Mapping
 		A mapping between cores and tasks.
 	"""
 
-	config: Configuration
-	hyperperiod: int
+	problem: Problem
 	score: int
 	mapping: Mapping
 
@@ -293,3 +290,71 @@ class Solution:
 				+ i + "\t\t}" for core, slices in self.mapping.items()
 			) + i + "\t}" + i
 			+ "}")
+
+
+"""Maps a core to a set of tasks."""
+CoreTaskMap = dict[Core, SortedSet[Task]]
+
+"""Maps a processor to a tuple of set of applications and core map."""
+ProcAppMap = dict[Processor, tuple[SortedSet[App], CoreTaskMap]]
+
+"""Maps a core to a set of jobs."""
+CoreJobMap = dict[Core, SortedSet[Job]]
+
+"""Mapping of tasks to cores, sorted by criticality, then eventual ordering, and finally by scheduling algorithm."""
+SortedMap = dict[Criticality, dict[Task, Core]]
+
+
+"""Scheduling check, returns the sufficient condition."""
+# Callable[[set[Task]], bool] = lambda tasks: workload(tasks) <= sufficient_condition(len(tasks))
+SchedCheck = Callable[[Collection[Task], Collection[Core]], bool]
+Ordering = Callable[[Iterable[Task]], Iterable[Task]]
+
+
+"""Algorithms for scheduling, containing the sufficient condition, an ordering function."""
+algorithms: dict[str, tuple[SchedCheck, Ordering]] = {
+	"edf": (
+		lambda tasks, cores: fsum(task.workload for task in tasks) <= len(cores) * 0.9,
+		lambda tasks: sorted(tasks, key=lambda t: t.deadline),
+	),
+	"rm": (
+		lambda tasks, cores: fsum(task.workload for task in tasks)
+			<= len(cores) * 0.9 * (len(tasks) * (2**(1 / len(tasks)) - 1)),
+		lambda tasks: sorted(tasks, key=lambda t: t.period),
+	),
+}
+
+
+"""Objective functions that assign a score to a feasible solution."""
+ObjectiveFunction = Callable[['Solution'], Union[int, float]]
+
+
+"""Objectives and descriptions."""
+objectives = {
+	"min_e2e": (
+		"minimal end-to-end application delay",
+		{
+			"cmltd": (
+				"cumulated; lower is better",
+				lambda s: s,
+			),
+			"nrml": (
+				"normal distribution; lower is better",
+				lambda s: s,
+			),
+		},
+	),
+	"max_empty": (
+		"maximal empty space",
+		{
+			"cmltd": (
+				"cumulated; lower is better",
+				lambda s: s,
+			),
+			"nrml": (
+				"normal distribution; lower is better",
+				lambda s: s,
+			),
+		},
+	),
+}
