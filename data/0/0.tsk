@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<graphml>
+	<Graph id="OneRing" edgedefault="directed">
+		<Node Id="0" Name="OneNode" WCET="200" Deadline="1000" CpuId="0" CIL="4">
+			<Period Value="1000"/>
+		</Node>
+
+		<Application Name="OneApp" Inorder="false" CA ="false">
+			<Runnable Name="OneNode"/>
+		</Application>
+	</Graph>
+</graphml>

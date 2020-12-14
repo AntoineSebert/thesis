@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<graphml>
+	<Graph id="IonicColumns" edgedefault="directed">
+		<Node Id="0" Name="C0" WCET="200" Deadline="1000" CpuId="0" CIL="4">
+			<Period Value="1000"/>
+		</Node>
+		<Node Id="1" Name="C1" WCET="200" Deadline="1000" CpuId="0" CIL="4">
+			<Period Value="1000"/>
+		</Node>
+
+		<Application Name="Propylaea" Inorder="false" CA ="false">
+			<Runnable Name="C0"/>
+			<Runnable Name="C1"/>
+		</Application>
+
+		<Application Name="Volute" Inorder="false" CA ="false">
+			<Runnable Name="C0"/>
+			<Runnable Name="C1"/>
+		</Application>
+	</Graph>
+</graphml>
