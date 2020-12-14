@@ -6,12 +6,13 @@
 
 from enum import Enum, unique
 from functools import partial
+from itertools import accumulate
 from json import JSONEncoder, dumps
 from queue import PriorityQueue
 from typing import Any
-from xml.etree.ElementTree import Element, SubElement, dump, fromstringlist, indent, register_namespace, tostring
+from xml.etree.ElementTree import Element, ElementTree, SubElement, dump, fromstringlist, indent, register_namespace, tostring
 
-from graph_model import Job
+from graph_model import Job, Criticality
 
 from model import Path, Solution
 
@@ -173,43 +174,158 @@ def _svg_format(solution: Solution) -> str:
 
 	register_namespace("", "http://www.w3.org/2000/svg")
 
-	title = "Solution for " + str(solution.config.filepaths.tsk)
+	hyperperiod = solution.problem.graph.hyperperiod
+	arch = solution.problem.arch
 
-	svg = fromstringlist([
-		"<svg width='100%' height='100%' lang='en' version='1.1'>",
-			f"<title>{title}</title>",
-			"<desc>An horizontal chart bar showing the solution to the scheduling problem.</desc>",
-			"<style>",  # https://www.w3.org/TR/SVG2/styling.html
-			"</style>",
-			"<defs>",
-				"<symbol id='cpu' class='cpu'>",
-					"<text>CPU</text>",
-					"<g class='cores'></g>",
-				"</symbol>",
-				"<symbol id='core' class='core'>",
-					"<text>CORE</text>",
-					"<g class='slices'></g>",
-					"<path y1='0' x1='0' y2='10' x2='10' />",
-					"<marker></marker>",  # <circle cx="6" cy="6" r="3" fill="white" stroke="context-stroke" stroke-width="2"/>
-				"</symbol>",
-				"<symbol id='slice' class='slice'>",
-					"<text>SLICE</text>",
-					"<text>start</text>",
-					"<text>end</text>",
-					"<rect x='100' y='100' width='400' height='200' rx='50' fill='green' />",
-				"</symbol>",
-				"<linearGradient id='background' y2='100%'>",
-					"<stop offset='5%' stop-color='rgba(3,126,243,1)' />",
-					"<stop offset='95%' stop-color='rgba(48,195,158,1)' />",
-				"</linearGradient>",
-			"</defs>",
-			"<rect fill='url(#background)' x='0' y='0' width='100%' height='100%' />",
-			f"<text x='30%' y='10%'>{title}</text>",
-			"<g></g>",
-		"</svg>",
-	])
+	colors = {
+		Criticality.sta_1: "green",
+		Criticality.sta_2: "yellow",
+		Criticality.sta_3: "orange",
+		Criticality.sta_4: "red",
+	}
 
-	return tostring(svg, encoding="unicode")
+	title_margin_top = 30
+
+	# core
+	core_width = hyperperiod + 20
+	core_height = 100
+	core_padding_top = 50
+	core_margin_top = 20
+
+	# cpu
+	cpu_margin_top = title_margin_top + 30
+	cpu_height_margin = 60
+	cpu_y = list(accumulate((((len(cpu) * (core_height + core_margin_top)) + core_padding_top) + cpu_height_margin for cpu in arch), initial=cpu_margin_top))
+	cpu_width = core_width + 40
+	cpu_x = 30
+
+	#img
+	img_width = cpu_width + 60
+	img_margin_bottom = 40
+	img_height = sum(((len(cpu) * (core_height + core_margin_top)) + core_padding_top) + cpu_height_margin for cpu in arch) + img_margin_bottom
+
+	svg = Element("svg", {"width": str(img_width), "height": str(img_height), "xmlns": 'http://www.w3.org/2000/svg'})
+
+	root = ElementTree(element=svg)
+	title = "Solution for " + solution.problem.config.filepaths.tsk.as_posix()
+
+	SubElement(svg, "title").text = title
+	SubElement(svg, "desc").text = "An horizontal chart bar showing the solution to the scheduling problem."
+
+	SubElement(svg, "rect", {"fill": 'url(#background)', "x": '0', "y": '0', "width": '100%', "height": '100%'})
+	SubElement(
+		svg, "text", {"x": '50%', "y": str(title_margin_top), "dominant-baseline": "middle", "text-anchor": "middle"}
+	).text = title
+
+	defs = SubElement(svg, "defs")
+
+	gradient = SubElement(defs, "linearGradient", id='background', y2='100%')
+	SubElement(gradient, "stop", {"offset": '5%', "stop-color": 'rgba(3,126,243,1)'})
+	SubElement(gradient, "stop", {"offset": '95%', "stop-color": 'rgba(48,195,158,1)'})
+
+	g = SubElement(svg, "g")
+
+	for i, cpu in enumerate(arch):
+		cpu_height = (len(cpu) * (core_height + core_margin_top)) + core_padding_top
+		SubElement(
+			g,
+			"rect",
+			{
+				"x": str(cpu_x),
+				"y": str(cpu_y[i]),
+				"width": str(cpu_width),
+				"height": str(cpu_height),
+				"rx": '20',
+				"fill": 'black',
+				"opacity": "0.5"
+			}
+		)
+		SubElement(g, "text", {"x": str(cpu_x + 20), "y": str(cpu_y[i] + 30), "fill": "white"}).text = f"cpu: {cpu.id}"
+
+		core_y = list(accumulate((core_height + core_margin_top for core in cpu), initial=cpu_y[i] + core_padding_top))
+
+		for ii, core in enumerate(cpu):
+			core_x = cpu_x + 20
+
+			SubElement(g, "rect", {
+				"x": str(core_x),
+				"y": str(core_y[ii]),
+				"height": str(core_height),
+				"width": str(core_width),
+				"rx": '10',
+				"fill": 'white',
+				"opacity": "0.8",
+			})
+
+			if core in solution.mapping:
+				SubElement(
+					g, "text", {"x": str(core_x + 10), "y": str(core_y[ii] + 20), "fill": "black"}
+				).text = f"core: {core.id}"
+
+				for job in solution.mapping[core]:
+					for iii, _slice in enumerate(job.execution):
+						slice_rect = SubElement(g, "rect", {
+							"x": str(core_x + 10 + _slice.start),
+							"y": str(core_y[ii] + 30),
+							"height": "40",
+							"width": str(_slice.stop - _slice.start),
+							"rx": '5',
+							"fill": colors[job.task.criticality],
+							"stroke": "black",
+						})
+						SubElement(slice_rect, "title").text = f"App : {job.task.app.name}"
+						SubElement(
+							g, "text", {"x":  str(core_x + 20 + _slice.start), "y": str(core_y[ii] + 90), "fill": "black"}
+						).text = f"t: {job.task.id}-{iii + 1}/{len(job.execution)}"
+
+			for iii in range(0, int(hyperperiod / 100)):
+				SubElement(g, "line", {
+					"x1": str(core_x + 10 + (iii * 100)),
+					"y1": str(core_y[ii] + 40),
+					"x2": str(core_x + 10 + (iii * 100)),
+					"y2": str(core_y[ii] + 60),
+					"stroke": 'black',
+				})
+
+			for iii in range(1, int(hyperperiod / 1000)):
+				SubElement(g, "line", {
+					"x1": str(core_x + 10 + (iii * 1000)),
+					"y1": str(core_y[ii] + 20),
+					"x2": str(core_x + 10 + (iii * 1000)),
+					"y2": str(core_y[ii] + 80),
+					"stroke": 'black',
+				})
+				SubElement(
+					g, "text", {"x": str(core_x + (iii * 1000) - 10), "y": str(core_y[ii] + 15), "fill": "black"}
+				).text = str(iii * 1000)
+
+			SubElement(g, "line", {
+				"x1": str(core_x + 10),
+				"y1": str(core_y[ii] + 20),
+				"x2": str(core_x + 10),
+				"y2": str(core_y[ii] + 80),
+				"stroke": 'black',
+			})
+			SubElement(g, "line", {
+				"x1": str(core_x + 10),
+				"y1": str(core_y[ii] + 50),
+				"x2": str(core_x + hyperperiod),
+				"y2": str(core_y[ii] + 50),
+				"stroke": 'black',
+			})
+			SubElement(g, "line", {
+				"x1": str(core_x + hyperperiod),
+				"y1": str(core_y[ii] + 20),
+				"x2": str(core_x + hyperperiod),
+				"y2": str(core_y[ii] + 80),
+				"stroke": 'black',
+			})
+
+	indent(svg, space="\t")
+	_svg = tostring(svg, encoding="unicode", xml_declaration=True)
+	print(_svg)
+
+	return _svg
 
 
 # CLASSES #############################################################################################################
