@@ -8,6 +8,9 @@ Resources
 Static analysis
 	tests :			https://github.com/pytest-dev/pytest
 	type checking :	https://github.com/python/mypy
+
+Sample
+	python src/main.py -a edf -f svg -o max_empty-cmltd -s 10 --case data/1
 """
 
 # IMPORTS #############################################################################################################
@@ -315,9 +318,9 @@ def main() -> int:
 
 		logging.info(f"Total ellasped time: {process_time()}s.")
 
-		exit(results)
+		return 0
 
-	exit(-1)
+	return -1
 
 
 if __name__ == "__main__":
