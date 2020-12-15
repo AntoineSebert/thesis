@@ -157,6 +157,43 @@ def _raw_format(solution: Solution) -> str:
 	return str(solution)
 
 
+def _scale(g: Element, hyperperiod: int, core_x: int, core_y: int) -> Element:
+	for iii in range(0, int(hyperperiod / 100)):
+		SubElement(g, "line", {
+			"x1": str(core_x + 10 + (iii * 100)), "y1": str(core_y + 40),
+			"x2": str(core_x + 10 + (iii * 100)), "y2": str(core_y + 60),
+			"stroke": 'black',
+		})
+
+	for iii in range(1, int(hyperperiod / 1000)):
+		SubElement(g, "line", {
+			"x1": str(core_x + 10 + (iii * 1000)), "y1": str(core_y + 20),
+			"x2": str(core_x + 10 + (iii * 1000)), "y2": str(core_y + 80),
+			"stroke": 'black',
+		})
+		SubElement(
+			g, "text", {"x": str(core_x + (iii * 1000) - 10), "y": str(core_y + 15), "fill": "black"}
+		).text = str(iii * 1000)
+
+	SubElement(g, "line", {
+		"x1": str(core_x + 10), "y1": str(core_y + 20),
+		"x2": str(core_x + 10), "y2": str(core_y + 80),
+		"stroke": 'black',
+	})
+	SubElement(g, "line", {
+		"x1": str(core_x + 10), "y1": str(core_y + 50),
+		"x2": str(core_x + hyperperiod), "y2": str(core_y + 50),
+		"stroke": 'black',
+	})
+	SubElement(g, "line", {
+		"x1": str(core_x + hyperperiod), "y1": str(core_y + 20),
+		"x2": str(core_x + hyperperiod), "y2": str(core_y + 80),
+		"stroke": 'black',
+	})
+
+	return g
+
+
 @timed_callable("Formatting the solution to SVG...")
 def _svg_format(solution: Solution) -> str:
 	"""Formats a solution into SVG.
@@ -199,6 +236,8 @@ def _svg_format(solution: Solution) -> str:
 	cpu_width = core_width + 40
 	cpu_x = 30
 
+	core_x = cpu_x + 20
+
 	#img
 	img_width = cpu_width + 60
 	img_margin_bottom = 40
@@ -231,10 +270,8 @@ def _svg_format(solution: Solution) -> str:
 			g,
 			"rect",
 			{
-				"x": str(cpu_x),
-				"y": str(cpu_y[i]),
-				"width": str(cpu_width),
-				"height": str(cpu_height),
+				"x": str(cpu_x), "y": str(cpu_y[i]),
+				"width": str(cpu_width), "height": str(cpu_height),
 				"rx": '20',
 				"fill": 'black',
 				"opacity": "0.5"
@@ -245,81 +282,35 @@ def _svg_format(solution: Solution) -> str:
 		core_y = list(accumulate((core_height + core_margin_top for core in cpu), initial=cpu_y[i] + core_padding_top))
 
 		for ii, core in enumerate(cpu):
-			core_x = cpu_x + 20
-
 			SubElement(g, "rect", {
-				"x": str(core_x),
-				"y": str(core_y[ii]),
-				"height": str(core_height),
-				"width": str(core_width),
+				"x": str(core_x), "y": str(core_y[ii]),
+				"height": str(core_height), "width": str(core_width),
 				"rx": '10',
 				"fill": 'white',
 				"opacity": "0.8",
 			})
+			SubElement(
+				g, "text", {"x": str(core_x + 10), "y": str(core_y[ii] + 20), "fill": "black"}
+			).text = f"core: {core.id}"
 
 			if core in solution.mapping:
-				SubElement(
-					g, "text", {"x": str(core_x + 10), "y": str(core_y[ii] + 20), "fill": "black"}
-				).text = f"core: {core.id}"
-
 				for job in solution.mapping[core]:
 					for iii, _slice in enumerate(job.execution):
 						slice_rect = SubElement(g, "rect", {
-							"x": str(core_x + 10 + _slice.start),
-							"y": str(core_y[ii] + 30),
-							"height": "40",
-							"width": str(_slice.stop - _slice.start),
+							"x": str(core_x + 10 + _slice.start), "y": str(core_y[ii] + 30),
+							"height": "40", "width": str(_slice.stop - _slice.start),
 							"rx": '5',
 							"fill": colors[job.task.criticality],
 							"stroke": "black",
 						})
 						SubElement(slice_rect, "title").text = f"App : {job.task.app.name}"
 						SubElement(
-							g, "text", {"x":  str(core_x + 20 + _slice.start), "y": str(core_y[ii] + 90), "fill": "black"}
+							g,
+							"text",
+							{"x":  str(core_x + 20 + _slice.start), "y": str(core_y[ii] + 90), "fill": "black"}
 						).text = f"t: {job.task.id}-{iii + 1}/{len(job.execution)}"
 
-			for iii in range(0, int(hyperperiod / 100)):
-				SubElement(g, "line", {
-					"x1": str(core_x + 10 + (iii * 100)),
-					"y1": str(core_y[ii] + 40),
-					"x2": str(core_x + 10 + (iii * 100)),
-					"y2": str(core_y[ii] + 60),
-					"stroke": 'black',
-				})
-
-			for iii in range(1, int(hyperperiod / 1000)):
-				SubElement(g, "line", {
-					"x1": str(core_x + 10 + (iii * 1000)),
-					"y1": str(core_y[ii] + 20),
-					"x2": str(core_x + 10 + (iii * 1000)),
-					"y2": str(core_y[ii] + 80),
-					"stroke": 'black',
-				})
-				SubElement(
-					g, "text", {"x": str(core_x + (iii * 1000) - 10), "y": str(core_y[ii] + 15), "fill": "black"}
-				).text = str(iii * 1000)
-
-			SubElement(g, "line", {
-				"x1": str(core_x + 10),
-				"y1": str(core_y[ii] + 20),
-				"x2": str(core_x + 10),
-				"y2": str(core_y[ii] + 80),
-				"stroke": 'black',
-			})
-			SubElement(g, "line", {
-				"x1": str(core_x + 10),
-				"y1": str(core_y[ii] + 50),
-				"x2": str(core_x + hyperperiod),
-				"y2": str(core_y[ii] + 50),
-				"stroke": 'black',
-			})
-			SubElement(g, "line", {
-				"x1": str(core_x + hyperperiod),
-				"y1": str(core_y[ii] + 20),
-				"x2": str(core_x + hyperperiod),
-				"y2": str(core_y[ii] + 80),
-				"stroke": 'black',
-			})
+				_scale(g, hyperperiod, core_x, core_y[ii])
 
 	indent(svg, space="\t")
 	_svg = tostring(svg, encoding="unicode", xml_declaration=True)
