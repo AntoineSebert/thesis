@@ -7,7 +7,7 @@ from itertools import groupby
 
 from graph_model import Criticality, Job, Task
 
-from model import Core, CoreJobMap, CoreTaskMap, ProcAppMap, SortedMap, algorithms
+from model import Core, CoreJobMap, CoreTaskMap, Ordering, Problem, ProcAppMap, SortedMap, Solution, algorithms
 
 from sortedcontainers import SortedSet  # type: ignore
 
@@ -175,9 +175,7 @@ def _schedule_task(task: Task, core: Core, c_jobs: SortedSet[Job]) -> bool:
 	return True
 
 
-def _order_task_cores(initial_mapping: ProcAppMap, algorithm: str) -> SortedMap:
-	_, ordering = algorithms[algorithm]
-
+def _order_task_cores(initial_mapping: ProcAppMap, algorithm: Ordering) -> SortedMap:
 	task_core: dict[Task, Core] = {}
 	for _apps, core_tasks in initial_mapping.values():
 		for core, tasks in core_tasks.items():
@@ -201,7 +199,7 @@ def _order_task_cores(initial_mapping: ProcAppMap, algorithm: str) -> SortedMap:
 # ENTRY POINT #########################################################################################################
 
 
-def schedule(initial_mapping: ProcAppMap, max_crit: Criticality, algorithm: str) -> CoreJobMap:
+def schedule(initial_mapping: ProcAppMap, problem: Problem, algorithm: Ordering) -> Solution:
 	crit_ordered_task_core = _order_task_cores(initial_mapping, algorithm)
 	cotc_done: SortedMap = {app.criticality: {} for apps, core_tasks in initial_mapping.values() for app in apps}
 	core_jobs: CoreJobMap = {
@@ -211,11 +209,11 @@ def schedule(initial_mapping: ProcAppMap, max_crit: Criticality, algorithm: str)
 	for crit, ordered_task_core in reversed(crit_ordered_task_core.items()):
 		for task, core in ordered_task_core.items():
 			if not _schedule_task(task, core, core_jobs[core]):
-				if crit < max_crit:
+				if crit < problem.graph.max_criticality():
 					raise NotImplementedError  # backtrack
 				else:
 					raise RuntimeError(f"Initial scheduling failed with task : '{task.app.name}/{task.id}'.")
 
 			cotc_done[crit][task] = core
 
-	return core_jobs
+	return Solution(problem, core_jobs)

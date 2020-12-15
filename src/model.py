@@ -8,8 +8,9 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Reversible, Set
 from dataclasses import dataclass, field
-from functools import total_ordering
+from functools import cached_property, total_ordering
 from math import fsum
+from operator import gt, lt
 from pathlib import Path
 from typing import Callable, Collection, Iterable, NamedTuple, TypeVar, Union
 
@@ -255,10 +256,6 @@ class Problem(NamedTuple):
 			+ self.graph.pformat(level + 1) + i + "}\n")
 
 
-"""A mapping of cores to jobs, representing the inital mapping."""
-Mapping = dict[Core, list[Job]]
-
-
 @dataclass
 class Solution:
 	"""A solution from a final schedule.
@@ -269,13 +266,16 @@ class Solution:
 		A scheduling problem.
 	score : int
 		The score of a Solution regarding an objective function.
-	mapping : Mapping
+	mapping : CoreJobMap
 		A mapping between cores and tasks.
 	"""
 
 	problem: Problem
-	score: int
-	mapping: Mapping
+	mapping: CoreJobMap
+
+	@cached_property
+	def score(self: Solution, scoring: Scoring):
+		return problem.config.params.objective(mapping)
 
 	def pformat(self: Solution, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
@@ -309,6 +309,7 @@ SortedMap = dict[Criticality, dict[Task, Core]]
 # Callable[[set[Task]], bool] = lambda tasks: workload(tasks) <= sufficient_condition(len(tasks))
 SchedCheck = Callable[[Collection[Task], Collection[Core]], bool]
 Ordering = Callable[[Iterable[Task]], Iterable[Task]]
+Scoring = Callable[[Solution], int]
 
 
 """Algorithms for scheduling, containing the sufficient condition, an ordering function."""
@@ -326,7 +327,7 @@ algorithms: dict[str, tuple[SchedCheck, Ordering]] = {
 
 
 """Objective functions that assign a score to a feasible solution."""
-ObjectiveFunction = Callable[['Solution'], Union[int, float]]
+ObjectiveFunction = Callable[[CoreJobMap], Union[int, float]]
 
 
 """Objectives and descriptions."""
@@ -337,10 +338,12 @@ objectives = {
 			"cmltd": (
 				"cumulated; lower is better",
 				lambda s: s,
+				gt,
 			),
 			"nrml": (
 				"normal distribution; lower is better",
 				lambda s: s,
+				gt,
 			),
 		},
 	),
@@ -350,10 +353,12 @@ objectives = {
 			"cmltd": (
 				"cumulated; lower is better",
 				lambda s: s,
+				lt,
 			),
 			"nrml": (
 				"normal distribution; lower is better",
 				lambda s: s,
+				lt,
 			),
 		},
 	),
