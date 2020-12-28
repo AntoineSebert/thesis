@@ -10,11 +10,11 @@ from itertools import accumulate
 from json import JSONEncoder, dumps
 from queue import PriorityQueue
 from typing import Any
-from xml.etree.ElementTree import Element, ElementTree, SubElement, dump, fromstringlist, indent, register_namespace, tostring
+from xml.etree.ElementTree import Element, SubElement, dump, indent, register_namespace, tostring
 
-from graph_model import Job, Criticality
+from graph_model import Criticality, Job
 
-from model import Path, Solution
+from model import Core, CoreJobMap, Path, Solution
 
 from timed import timed_callable
 
@@ -36,10 +36,10 @@ class SolutionEncoder(JSONEncoder):
 			return [obj.qsize(), obj.empty()]
 		elif isinstance(obj, Solution):
 			return {"schedule": {
-				"configuration": obj.config.json(),
-				"hyperperiod": obj.hyperperiod,
+				"configuration": obj.problem.config.json(),
+				"hyperperiod": obj.problem.graph.hyperperiod,
 				"score": obj.score,
-				"mapping": obj.mapping,
+				"core_jobs": obj.core_jobs,
 			}}
 		elif isinstance(obj, Path):
 			return str(obj)
@@ -97,17 +97,17 @@ def _xml_format(solution: Solution) -> str:
 
 	scheduling = Element("scheduling")
 	config = SubElement(scheduling, "configuration", {
-		"algorithm": solution.config.params.algorithm,
-		"switch-time": str(solution.config.params.switch_time),
-		"objective": solution.config.params.objective,
+		"algorithm": solution.problem.config.params.algorithm,
+		"switch-time": str(solution.problem.config.params.switch_time),
+		"objective": solution.problem.config.params.objective,
 	})
 	config.append(Element("files", {
-		"tsk": str(solution.config.filepaths.tsk),
-		"cfg": str(solution.config.filepaths.cfg),
+		"tsk": str(solution.problem.config.filepaths.tsk),
+		"cfg": str(solution.problem.config.filepaths.cfg),
 	}))
 
 	mapping = SubElement(scheduling, "mapping", {
-		"hyperperiod": str(solution.hyperperiod),
+		"hyperperiod": str(solution.problem.graph.hyperperiod),
 		"score": str(solution.score),
 	})
 
@@ -157,41 +157,62 @@ def _raw_format(solution: Solution) -> str:
 	return str(solution)
 
 
-def _scale(g: Element, hyperperiod: int, core_x: int, core_y: int) -> Element:
+def _draw_scale(g: Element, hyperperiod: int, x: int, y: int) -> Element:
 	for iii in range(0, int(hyperperiod / 100)):
 		SubElement(g, "line", {
-			"x1": str(core_x + 10 + (iii * 100)), "y1": str(core_y + 40),
-			"x2": str(core_x + 10 + (iii * 100)), "y2": str(core_y + 60),
+			"x1": str(x + 10 + (iii * 100)), "y1": str(y + 40), "x2": str(x + 10 + (iii * 100)), "y2": str(y + 60),
 			"stroke": 'black',
 		})
 
 	for iii in range(1, int(hyperperiod / 1000)):
 		SubElement(g, "line", {
-			"x1": str(core_x + 10 + (iii * 1000)), "y1": str(core_y + 20),
-			"x2": str(core_x + 10 + (iii * 1000)), "y2": str(core_y + 80),
+			"x1": str(x + 10 + (iii * 1000)), "y1": str(y + 20), "x2": str(x + 10 + (iii * 1000)), "y2": str(y + 80),
 			"stroke": 'black',
 		})
 		SubElement(
-			g, "text", {"x": str(core_x + (iii * 1000) - 10), "y": str(core_y + 15), "fill": "black"}
+			g, "text", {"x": str(x + (iii * 1000) - 10), "y": str(y + 15), "fill": "black"},
 		).text = str(iii * 1000)
 
+	SubElement(g, "line", {"x1": str(x + 10), "y1": str(y + 20), "x2": str(x + 10), "y2": str(y + 80), "stroke": 'black'})
 	SubElement(g, "line", {
-		"x1": str(core_x + 10), "y1": str(core_y + 20),
-		"x2": str(core_x + 10), "y2": str(core_y + 80),
-		"stroke": 'black',
+		"x1": str(x + 10), "y1": str(y + 50), "x2": str(x + hyperperiod), "y2": str(y + 50), "stroke": 'black',
 	})
 	SubElement(g, "line", {
-		"x1": str(core_x + 10), "y1": str(core_y + 50),
-		"x2": str(core_x + hyperperiod), "y2": str(core_y + 50),
-		"stroke": 'black',
-	})
-	SubElement(g, "line", {
-		"x1": str(core_x + hyperperiod), "y1": str(core_y + 20),
-		"x2": str(core_x + hyperperiod), "y2": str(core_y + 80),
-		"stroke": 'black',
+		"x1": str(x + hyperperiod), "y1": str(y + 20), "x2": str(x + hyperperiod), "y2": str(y + 80), "stroke": 'black',
 	})
 
 	return g
+
+
+def _draw_core(g: Element, core: Core, x: int, y: int, h: int, w: int, hyperperiod: int, mapping: CoreJobMap,
+	colors: dict[Criticality, str]) -> Element:
+
+	SubElement(g, "rect", {
+		"x": str(x), "y": str(y), "height": str(h), "width": str(w),
+		"rx": '10',
+		"fill": 'white',
+		"opacity": "0.8",
+	})
+	SubElement(g, "text", {"x": str(x + 10), "y": str(y + 20), "fill": "black"}).text = f"core: {core.id}"
+
+	if core in mapping:
+		for job in mapping[core]:
+			for i, _slice in enumerate(job.execution):
+				slice_rect = SubElement(g, "rect", {
+					"x": str(x + 10 + _slice.start), "y": str(y + 30),
+					"height": "40", "width": str(_slice.stop - _slice.start),
+					"rx": '10',
+					"fill": colors[job.task.criticality],
+					"stroke": "black",
+				})
+				SubElement(slice_rect, "title").text = f"App : {job.task.app.name}"
+				SubElement(
+					g, "text", {"x": str(x + 15 + _slice.start), "y": str(y + 90), "fill": "black"},
+				).text = f"T{job.task.id}-J{job.task.jobs.index(job) + 1}/{len(job.task)}-S{i + 1}/{len(job.execution)}"
+
+		_draw_scale(g, hyperperiod, x, y)
+
+	return core
 
 
 @timed_callable("Formatting the solution to SVG...")
@@ -214,7 +235,7 @@ def _svg_format(solution: Solution) -> str:
 	hyperperiod = solution.problem.graph.hyperperiod
 	arch = solution.problem.arch
 
-	colors = {
+	colors: dict[Criticality, str] = {
 		Criticality.sta_1: "green",
 		Criticality.sta_2: "yellow",
 		Criticality.sta_3: "orange",
@@ -232,20 +253,24 @@ def _svg_format(solution: Solution) -> str:
 	# cpu
 	cpu_margin_top = title_margin_top + 30
 	cpu_height_margin = 60
-	cpu_y = list(accumulate((((len(cpu) * (core_height + core_margin_top)) + core_padding_top) + cpu_height_margin for cpu in arch), initial=cpu_margin_top))
+	cpu_y = list(accumulate(
+		(((len(cpu) * (core_height + core_margin_top)) + core_padding_top) + cpu_height_margin for cpu in arch),
+		initial=cpu_margin_top,
+	))
 	cpu_width = core_width + 40
 	cpu_x = 30
 
 	core_x = cpu_x + 20
 
-	#img
+	# img
 	img_width = cpu_width + 60
 	img_margin_bottom = 40
-	img_height = sum(((len(cpu) * (core_height + core_margin_top)) + core_padding_top) + cpu_height_margin for cpu in arch) + img_margin_bottom
+	img_height = sum(
+		((len(cpu) * (core_height + core_margin_top)) + core_padding_top) + cpu_height_margin for cpu in arch
+	) + img_margin_bottom
 
 	svg = Element("svg", {"width": str(img_width), "height": str(img_height), "xmlns": 'http://www.w3.org/2000/svg'})
 
-	root = ElementTree(element=svg)
 	title = "Solution for " + solution.problem.config.filepaths.tsk.as_posix()
 
 	SubElement(svg, "title").text = title
@@ -253,7 +278,7 @@ def _svg_format(solution: Solution) -> str:
 
 	SubElement(svg, "rect", {"fill": 'url(#background)', "x": '0', "y": '0', "width": '100%', "height": '100%'})
 	SubElement(
-		svg, "text", {"x": '50%', "y": str(title_margin_top), "dominant-baseline": "middle", "text-anchor": "middle"}
+		svg, "text", {"x": '50%', "y": str(title_margin_top), "dominant-baseline": "middle", "text-anchor": "middle"},
 	).text = title
 
 	defs = SubElement(svg, "defs")
@@ -274,47 +299,19 @@ def _svg_format(solution: Solution) -> str:
 				"width": str(cpu_width), "height": str(cpu_height),
 				"rx": '20',
 				"fill": 'black',
-				"opacity": "0.5"
-			}
+				"opacity": "0.5",
+			},
 		)
 		SubElement(g, "text", {"x": str(cpu_x + 20), "y": str(cpu_y[i] + 30), "fill": "white"}).text = f"cpu: {cpu.id}"
 
 		core_y = list(accumulate((core_height + core_margin_top for core in cpu), initial=cpu_y[i] + core_padding_top))
 
 		for ii, core in enumerate(cpu):
-			SubElement(g, "rect", {
-				"x": str(core_x), "y": str(core_y[ii]),
-				"height": str(core_height), "width": str(core_width),
-				"rx": '10',
-				"fill": 'white',
-				"opacity": "0.8",
-			})
-			SubElement(
-				g, "text", {"x": str(core_x + 10), "y": str(core_y[ii] + 20), "fill": "black"}
-			).text = f"core: {core.id}"
-
-			if core in solution.mapping:
-				for job in solution.mapping[core]:
-					for iii, _slice in enumerate(job.execution):
-						slice_rect = SubElement(g, "rect", {
-							"x": str(core_x + 10 + _slice.start), "y": str(core_y[ii] + 30),
-							"height": "40", "width": str(_slice.stop - _slice.start),
-							"rx": '5',
-							"fill": colors[job.task.criticality],
-							"stroke": "black",
-						})
-						SubElement(slice_rect, "title").text = f"App : {job.task.app.name}"
-						SubElement(
-							g,
-							"text",
-							{"x":  str(core_x + 20 + _slice.start), "y": str(core_y[ii] + 90), "fill": "black"}
-						).text = f"t: {job.task.id}-{iii + 1}/{len(job.execution)}"
-
-				_scale(g, hyperperiod, core_x, core_y[ii])
+			_draw_core(g, core, core_x, core_y[ii], core_height, core_width, hyperperiod, solution.core_jobs, colors)
 
 	indent(svg, space="\t")
 	_svg = tostring(svg, encoding="unicode", xml_declaration=True)
-	print(_svg)
+	#print(_svg)
 
 	return _svg
 
