@@ -3,16 +3,27 @@
 
 # IMPORTS #############################################################################################################
 
-from itertools import groupby
+from math import fsum
 
-from graph_model import Criticality, Job, Task
+from graph_model import Job
 
-from model import Core, CoreJobMap, CoreTaskMap, Ordering, Problem, ProcAppMap, SortedMap, Solution, algorithms
+from model import CoreJobMap, Ordering, Problem, Solution
 
 from sortedcontainers import SortedSet  # type: ignore
 
 
 # FUNCTIONS ###########################################################################################################
+
+
+def global_schedulability_test(problem: Problem) -> bool:
+	# EDF !
+	security_margin = 0.9
+	total_workload = fsum(task.workload for app in problem.graph.apps for task in app)
+
+	if total_workload <= (sufficient_condition := sum(len(cpu) for cpu in problem.arch) * security_margin):
+		return True
+	else:
+		raise RuntimeError(f"Total workload is {total_workload}, should not be higher than {sufficient_condition}.")
 
 
 def _overlap_before(slice1: slice, slice2: slice) -> bool:
@@ -81,18 +92,6 @@ def _get_runtime(slices: list[slice]) -> int:
 	return _sum
 
 
-def _get_intersect_slices(job: Job, c_jobs: SortedSet[Job]) -> list[slice]:
-	slices = []
-
-	for c_job in filter(lambda j: _intersect(job.exec_window, j.exec_window), c_jobs):
-		for _slice in filter(lambda s: _intersect(job.exec_window, s), c_job):
-			slices.append(_slice)  # check for partitions !
-
-	_check_no_intersect(slices)  # check that the intersecting slices do not intersect between themselves
-
-	return sorted(slices, key=lambda s: s.start)
-
-
 def _check_no_intersect(slices: list[slice]) -> None:
 	if len(slices) < 2:
 		return
@@ -103,8 +102,40 @@ def _check_no_intersect(slices: list[slice]) -> None:
 				raise RuntimeError(f"Error : slices '{slices[i]}' and '{slices[ii]}' intersect.")
 
 
+def _get_intersect_slices(job: Job, c_jobs: SortedSet[Job]) -> list[slice]:
+	# print("\t\t\t_get_intersect_slices")
+	slices = []
+
+	"""
+	print("\t" * 4 + f"c_jobs ({len(c_jobs)}) :")
+	for _job in c_jobs:
+		print("\t" * 5 + _job.task.short() + " : " + str(_job.exec_window))
+		for _slice in _job:
+			print("\t" * 6 + str(_slice))
+	"""
+
+	for c_job in filter(lambda j: _intersect(job.exec_window, j.exec_window), c_jobs):
+		# print("\t" * 4 + str(c_job.sched_window))
+		for _slice in filter(lambda s: _intersect(job.exec_window, s), c_job):
+			slices.append(_slice)  # check for partitions !
+
+	"""
+	print("\t" * 4 + "after :")
+	for _slice in slices:
+		print("\t" * 5 + str(_slice))
+	"""
+
+	_check_no_intersect(slices)  # check that the intersecting slices do not intersect between themselves
+
+	return sorted(slices, key=lambda s: s.start)
+
+
 def _get_slices(job: Job, c_jobs: SortedSet[Job]) -> list[slice]:
+	# print("\t\t_get_slices")
 	slices = _get_intersect_slices(job, c_jobs)
+
+	if not slices:
+		return [slice(job.exec_window.start, job.exec_window.start + job.task.wcet)]
 
 	job_slices = []
 	remaining = job.task.wcet
@@ -126,7 +157,7 @@ def _get_slices(job: Job, c_jobs: SortedSet[Job]) -> list[slice]:
 				job_slices.append(slice(slices[i].stop, slices[i].stop + space))
 				remaining -= space
 
-	# eventual leading space
+	# eventual following space
 	if slices[-1].stop < job.exec_window.stop:
 		if remaining <= (space := job.exec_window.stop - slices[-1].stop):
 			job_slices.append(slice(slices[-1].stop, slices[-1].stop + space))
@@ -138,6 +169,7 @@ def _get_slices(job: Job, c_jobs: SortedSet[Job]) -> list[slice]:
 
 
 def _generate_exec_slices(job: Job, slices: list[slice]) -> list[slice]:
+	# print("\t\t_generate_exec_slices")
 	j_slices = []
 	target_runtime = job.task.wcet
 
@@ -154,66 +186,46 @@ def _generate_exec_slices(job: Job, slices: list[slice]) -> list[slice]:
 	return j_slices
 
 
-def _schedule_task(task: Task, core: Core, c_jobs: SortedSet[Job]) -> bool:
-	if len(c_jobs) == 0:
-		for job in task:
-			job.execution.append(slice(job.exec_window.start, job.exec_window.start + task.wcet))
-			c_jobs.add(job)
-	else:
-		for job in task:
-			slices = _get_slices(job, c_jobs)
-			# check if enough runtime
-			if (runtime := _get_runtime(slices)) == task.wcet:
-				job.execution.extend(slices)
-			elif task.wcet < runtime:
-				job.execution.extend(_generate_exec_slices(job, slices))
-			else:
-				return False
+def _create_execution_slices(jobs: SortedSet[Job]) -> bool:
+	"""
+	print("\t_schedule_task " + "=" * 140)
 
-			c_jobs.add(job)
+	print("\t" * 2 + f"c_jobs ({len(jobs)}) :")
+	for _job in jobs:
+		print("\t" * 3 + _job.task.short() + " : " + str(_job.exec_window))
+		for _slice in _job:
+			print("\t" * 4 + str(_slice))
+	"""
+
+	for job in jobs:
+		slices = _get_slices(job, jobs)
+
+		# checks if enough runtime
+		if (runtime := _get_runtime(slices)) == job.task.wcet:
+			job.execution.extend(slices)
+		elif job.task.wcet < runtime:
+			job.execution.extend(_generate_exec_slices(job, slices))
+		else:
+			return False
 
 	return True
-
-
-def _order_task_cores(initial_mapping: ProcAppMap, algorithm: Ordering) -> SortedMap:
-	task_core: dict[Task, Core] = {}
-	for _apps, core_tasks in initial_mapping.values():
-		for core, tasks in core_tasks.items():
-			for task in tasks:
-				task_core[task] = core
-
-	crit_ordered_task_core: SortedMap = {
-		app.criticality: {} for apps, core_tasks in initial_mapping.values() for app in apps
-	}
-
-	for apps, _core_tasks in initial_mapping.values():
-		for crit, apps in groupby(reversed(apps), lambda a: a.criticality):
-			for app in SortedSet(apps, key=lambda a: a.order):
-				# schedulign algorithm
-				for task in ordering(app) if app.order else app.tasks:
-					crit_ordered_task_core[crit][task] = task_core[task]
-
-	return crit_ordered_task_core
 
 
 # ENTRY POINT #########################################################################################################
 
 
-def schedule(initial_mapping: ProcAppMap, problem: Problem, algorithm: Ordering) -> Solution:
-	crit_ordered_task_core = _order_task_cores(initial_mapping, algorithm)
-	cotc_done: SortedMap = {app.criticality: {} for apps, core_tasks in initial_mapping.values() for app in apps}
-	core_jobs: CoreJobMap = {
-		core: SortedSet() for app, core_tasks in initial_mapping.values() for core in core_tasks.keys()
-	}
+def schedule(core_jobs: CoreJobMap, problem: Problem, ordering: Ordering) -> Solution:
+	# print("/" * 200)
+	for core, jobs in core_jobs.items():
+		jobs = ordering(jobs)
 
-	for crit, ordered_task_core in reversed(crit_ordered_task_core.items()):
-		for task, core in ordered_task_core.items():
-			if not _schedule_task(task, core, core_jobs[core]):
-				if crit < problem.graph.max_criticality():
-					raise NotImplementedError  # backtrack
-				else:
-					raise RuntimeError(f"Initial scheduling failed with task : '{task.app.name}/{task.id}'.")
-
-			cotc_done[crit][task] = core
+		if not _create_execution_slices(jobs):
+			raise RuntimeError(f"Initial scheduling failed with core : '{core.short()}'.")
+			"""
+			if task.criticality < problem.graph.max_criticality():
+				raise NotImplementedError  # backtrack
+			else:
+				raise RuntimeError(f"Initial scheduling failed with task : '{task.app.name}/{task.id}'.")
+			"""
 
 	return Solution(problem, core_jobs)
