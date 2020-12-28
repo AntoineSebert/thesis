@@ -12,9 +12,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum, unique
 from functools import cached_property, total_ordering
 from math import fsum
-from typing import NamedTuple
-
-from defusedxml import ElementTree  # type: ignore
+from typing import NamedTuple, Type
 
 from sortedcontainers import SortedSet  # type: ignore
 
@@ -49,21 +47,18 @@ class Job(Set, Reversible):
 	----------
 	task : Task
 		The task the job belongs to.
+	sched_window : slice
+		The window scheduling time, representing (activation_time, activation_time + deadline).
 	exec_window : slice
-		The window execution time, representing (activation_time, activation_time + deadline).
+		The window execution time, representing (activation_time + offset, activation_time + local_deadline).
 	execution : list[slice]
 		Set of execution slices.
-	offset : int
-		The earliest start time within the execution window.
-	local_deadline : int
-		The local deadline within the execution window.
 	"""
 
 	task: Task
+	sched_window: slice
 	exec_window: slice
-	execution: list[slice]
-	offset: int = 0
-	local_deadline: int = 0
+	execution: list[slice] = field(default_factory=list)
 
 	def duration(self: Job) -> int:
 		"""Computes and caches the duration of the slice.
@@ -79,9 +74,24 @@ class Job(Set, Reversible):
 
 		return sum(_slice.stop - _slice.start for _slice in self.execution) if len(self.execution) != 0 else 0
 
+	def offset(self: Job) -> int:
+		"""The earliest start time within the execution window."""
+		return self.exec_window.start - self.sched_window.start
+
+	def local_deadline(self: Job) -> int:
+		"""The local deadline within the execution window."""
+		return self.exec_window.stop - self.sched_window.stop
+
+	def has_miss(self: Job) -> bool:
+		for _slice in self.execution:
+			if self.exec_window.stop < _slice.start or self.exec_window.stop < _slice.stop:
+				return True
+
+		return False
+
 	def __eq__(self: Job, other: object) -> bool:
 		if isinstance(other, Job):
-			return self.task == other.task and self.exec_window == other.exec_window
+			return self.task == other.task and self.sched_window == other.sched_window
 		else:
 			return NotImplemented
 
@@ -107,10 +117,10 @@ class Job(Set, Reversible):
 		return len(self.execution)
 
 	def __hash__(self: Job) -> int:
-		return hash(str(self.task) + str(self.exec_window.start) + str(self.exec_window.stop) + str(self.execution))
+		return hash(str(self.task) + str(self.exec_window) + str(self.sched_window) + str(self.execution))
 
 	def short(self: Job) -> str:
-		return f"{self.task.short()} [{self.exec_window.start} - {self.exec_window.stop}]"
+		return f"{self.task.short()} [{self.sched_window.start} - {self.sched_window.stop}][{self.exec_window.start} - {self.exec_window.stop}]"
 
 	def pformat(self: Job, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
@@ -153,18 +163,8 @@ class Task(Set, Reversible):
 	period: int
 	deadline: int
 	criticality: Criticality
-	jobs: SortedSet[Job]
-	parent: Task
-
-	def __init__(self: Task, node: ElementTree, app: App) -> None:
-		self.id = int(node.get("Id"))
-		self.app = app
-		self.wcet = int(node.get("WCET"))
-		self.period = int(node.find("Period").get("Value"))
-		self.deadline = int(node.get("Deadline"))
-		self.criticality = Criticality(int(node.get("CIL")))
-		self.jobs = SortedSet()
-		self.parent = None
+	parent: Task = None
+	jobs: SortedSet[Job] = field(default_factory=SortedSet)
 
 	def __eq__(self: Task, other: object) -> bool:
 		if isinstance(other, Task):
@@ -196,8 +196,33 @@ class Task(Set, Reversible):
 	def __hash__(self: Task) -> int:
 		return hash(str(self.id) + self.app.name)
 
-	def execution_time(self: Task) -> int:
-		"""Computes the total execution time of the task, should be equal to int(hyperperiod / task.period) * task.wcet.
+	def __new__(cls: Type[Task], id: int, app: App, wcet: int, period: int, deadline: int, criticality: Criticality) -> Task:
+		self = super().__new__(cls)  # Must explicitly create the new object
+		# Aside from explicit construction and return, rest of __new__ is same as __init__
+		self.id = id
+		self.app = app
+		self.wcet = wcet
+		self.period = period
+		self.deadline = deadline
+		self.criticality = criticality
+		self.parent = None
+		self.jobs = SortedSet()
+
+		return self  # __new__ returns the new object
+
+	def __getnewargs__(self: Task) -> tuple[int, App, int, int, int, Criticality]:
+		# Return the arguments that *must* be passed to __new__
+		return (self.id, self.app, self.wcet, self.period, self.deadline, self.criticality)
+
+	def has_miss(self: Task) -> bool:
+		for job in self:
+			if job.has_miss():
+				return True
+
+		return False
+
+	def check_execution_time(self: Task, hyperperiod: int) -> bool:
+		"""Computes the total execution time of the task.
 
 		Parameters
 		----------
@@ -206,11 +231,11 @@ class Task(Set, Reversible):
 
 		Returns
 		-------
-		int
+		bool
 			The total execution time.
 		"""
 
-		return sum(job.duration for job in self.jobs)
+		return sum(job.duration() for job in self.jobs) == int(hyperperiod / self.period) * self.wcet
 
 	@cached_property
 	def workload(self: Task) -> float:
