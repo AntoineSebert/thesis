@@ -280,28 +280,28 @@ class Solution:
 		A scheduling problem.
 	score : int
 		The score of a Solution regarding an objective function.
-	mapping : CoreJobMap
-		A mapping between cores and tasks.
+	core_jobs : CoreJobMap
+		A mapping between cores and jobs.
 	"""
 
 	problem: Problem
-	mapping: CoreJobMap
+	core_jobs: CoreJobMap
 
 	@cached_property
-	def score(self: Solution, scoring: Scoring):
-		return problem.config.params.objective(mapping)
+	def score(self: Solution, scoring: Scoring) -> Union[int, float]:
+		return self.problem.config.params.objective(self.core_jobs)
 
 	def pformat(self: Solution, level: int = 0) -> str:
 		i = "\n" + ("\t" * level)
 
 		return (i + "solution {"
-			+ self.config.pformat(level + 1) + i
-			+ f"\thyperperiod : {self.hyperperiod};" + i
+			+ self.problem.config.pformat(level + 1) + i
+			+ f"\thyperperiod : {self.problem.graph.hyperperiod};" + i
 			+ f"\tscore : {self.score};" + i
-			+ "\tmapping {" + "".join(
+			+ "\tcore_job {" + "".join(
 				core.pformat(level + 2) + " : {"
 					+ "".join(_slice.pformat(level + 3) for _slice in slices)
-				+ i + "\t\t}" for core, slices in self.mapping.items()
+				+ i + "\t\t}" for core, slices in self.core_jobs.items()
 			) + i + "\t}" + i
 			+ "}")
 
@@ -309,21 +309,14 @@ class Solution:
 """Maps a core to a set of tasks."""
 CoreTaskMap = dict[Core, SortedSet[Task]]
 
-"""Maps a processor to a tuple of set of applications and core map."""
-ProcAppMap = dict[Processor, tuple[SortedSet[App], CoreTaskMap]]
-
 """Maps a core to a set of jobs."""
-CoreJobMap = dict[Core, SortedSet[Job]]
-
-"""Mapping of tasks to cores, sorted by criticality, then eventual ordering, and finally by scheduling algorithm."""
-SortedMap = dict[Criticality, dict[Task, Core]]
-
+CoreJobMap = dict[Core, list[Job]]
 
 """Scheduling check, returns the sufficient condition."""
 # Callable[[set[Task]], bool] = lambda tasks: workload(tasks) <= sufficient_condition(len(tasks))
 SchedCheck = Callable[[Collection[Task], Collection[Core]], bool]
-Ordering = Callable[[Iterable[Task]], Iterable[Task]]
-Scoring = Callable[[Solution], int]
+Ordering = Callable[[Iterable[Job]], Iterable[Task]]
+Scoring = Callable[[CoreJobMap], Union[int, float]]
 
 
 """Algorithms for scheduling, containing the sufficient condition, an ordering function."""
