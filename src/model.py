@@ -323,14 +323,33 @@ Scoring = Callable[[CoreJobMap], Union[int, float]]
 algorithms: dict[str, tuple[SchedCheck, Ordering]] = {
 	"edf": (
 		lambda tasks, cores: fsum(task.workload for task in tasks) <= len(cores) * 0.9,
-		lambda tasks: sorted(tasks, key=lambda t: t.deadline),
+		lambda jobs: sorted(jobs, key=lambda job: job.sched_window.stop),
 	),
 	"rm": (
-		lambda tasks, cores: fsum(task.workload for task in tasks)
-			<= len(cores) * 0.9 * (len(tasks) * (2**(1 / len(tasks)) - 1)),
-		lambda tasks: sorted(tasks, key=lambda t: t.period),
+		lambda tasks, cores: fsum(task.workload for task in tasks) <= len(cores) * 0.9 * (len(tasks) * (2**(1 / len(tasks)) - 1)),
+		lambda jobs: sorted(jobs, key=lambda job: job.task.period),
 	),
 }
+
+
+def empty_space(solution: Solution) -> int:
+	total_running = 0
+
+	for jobs in solution.core_jobs.values():
+		if jobs:
+			all_sorted_slices = sorted(_slice for job in jobs for _slice in job)
+
+			if len(all_sorted_slices) == 1:
+				total_running += all_sorted_slices[0].stop - all_sorted_slices[0].start
+			else:
+				running_time = 0
+
+				for _slice in all_sorted_slices:
+					running_time += _slice.stop - _slice.start
+
+				total_running += running_time
+
+	return (len(solution.core_jobs) * solution.problem.graph.hyperperiod) - total_running
 
 
 """Objective functions that assign a score to a feasible solution."""
@@ -358,7 +377,7 @@ objectives = {
 		"maximal empty space",
 		{
 			"cmltd": (
-				"cumulated; lower is better",
+				"cumulated; higher is better",
 				lambda s: s,
 				lt,
 			),
