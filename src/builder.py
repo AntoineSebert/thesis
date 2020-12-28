@@ -39,7 +39,7 @@ def _import_arch(filepath: Path) -> Architecture:
 	arch: list[Processor] = []
 
 	for cpu in ElementTree.parse(filepath).iter("Cpu"):
-		arch.append(Processor(int(cpu.get("Id")), SortedSet()))
+		arch.append(Processor(int(cpu.get("Id"))))
 		arch[-1].cores = {Core(int(core.get("Id")), arch[-1]) for core in cpu}
 
 	return set(arch)
@@ -108,15 +108,22 @@ def _import_graph(filepath: Path, arch: Architecture) -> Graph:
 	apps: list[App] = []
 
 	for app in et.iter("Application"):
-		apps.append(App(app.get("Name"), [], False))
+		apps.append(App(app.get("Name"), False))
 
 		tasks = [
-			Task(node, apps[-1])
-			for runnable in app.iter("Runnable") if (node := nodes.get(runnable.get("Name"))) is not None
+			Task(
+				int(node.get("Id")),
+				apps[-1],
+				int(node.get("WCET")),
+				int(node.find("Period").get("Value")),
+				int(node.get("Deadline")),
+				Criticality(int(node.get("CIL"))),
+			) for runnable in app.iter("Runnable") if (node := nodes.get(runnable.get("Name"))) is not None
 		]
 
 		if app.get("Inorder") == "true":
 			apps[-1].order = True
+
 			for i, task in enumerate(tasks[1:]):
 				task.parent = tasks[i]
 
