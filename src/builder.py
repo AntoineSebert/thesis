@@ -10,7 +10,7 @@ from pathlib import Path
 
 from defusedxml import ElementTree  # type: ignore
 
-from graph_model import App, Graph, Job, Task
+from graph_model import App, Criticality, Graph, Job, Task
 
 from model import Architecture, Configuration, Core, Problem, Processor
 
@@ -20,6 +20,13 @@ from timed import timed_callable
 
 
 # FUNCTIONS ###########################################################################################################
+
+
+def _print_jobs(graph: Graph) -> None:
+	for app in graph.apps:
+		for task in app:
+			for job in task:
+				print(job.pformat())
 
 
 def _import_arch(filepath: Path) -> Architecture:
@@ -84,7 +91,8 @@ def _create_jobs(apps: list[App], hyperperiod: int) -> SortedSet[App]:
 	for app in apps:
 		for task in app:
 			for i in range(int(hyperperiod / task.period)):
-				task.jobs.add(Job(task, slice(i * task.period, ((i + 1) * task.period) - 1), []))
+				window = slice(i * task.period, ((i + 1) * task.period))
+				task.jobs.add(Job(task, window, window))
 
 	return apps
 
@@ -157,5 +165,7 @@ def build(config: Configuration) -> Problem:
 
 	graph = _import_graph(config.filepaths.tsk, arch)
 	logging.info("Imported graphs from " + config.filepaths.tsk.name)
+
+	# _print_jobs(graph)
 
 	return Problem(config, arch, graph)
