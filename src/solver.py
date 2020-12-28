@@ -4,64 +4,101 @@
 # IMPORTS #############################################################################################################
 
 import logging
+from copy import deepcopy
 
-from graph_model import Graph
+from graph_model import App, Graph, Job
 
 from mapper import mapping
 
-from model import algorithms, objectives, CoreJobMap, Problem, Solution
+from model import Architecture, Ordering, Problem, Processor, SchedCheck, Solution, Task, algorithms, empty_space
 
-from scheduler import schedule
+from scheduler import global_schedulability_test, schedule
 
 from timed import timed_callable
 
 
 # FUNCTIONS ###########################################################################################################
 
-def get_neighbors(solution: Solution, algorithm) -> list[Graph]:
-	candidates = []
 
-	for app in solution.problem.graph.apps:
+def _cpu_tasks_map(arch: Architecture, graph: Graph) -> dict[Processor, set[Task]]:
+	cpu_tasks: dict[Processor, set[Task]] = dict.fromkeys(arch, set())
+
+	for app in graph.apps:
 		for task in app:
-			for job in task:
-				if 10 <= job.local_deadline - job.offset:
-					neighbor = solution.copy()
-					neighbor.tasks[task].jobs[job].offset += solution.problem.config.params.initial_step
+			cpu_tasks[task.cpu].add(task)
 
-					if is_feasible(neighbor, algorithm):
-						candidates.add(neighbor)
-
-	return candidates
+	return cpu_tasks
 
 
-def is_feasible(candidate, algorithm) -> bool:
-	schedule(candidate, algorithm)
+def _find_app_by_name(graph: Graph, name: str) -> App:
+	for app in graph.apps:
+		if app.name == name:
+			return app
 
-	for task in candidate.tasks:
-		for job in task.jobs:
-			if deadline_miss(task, job):
+	raise RuntimeError(f"Failed to find app with {name=}.")
+
+
+def _find_task_by_id(app: App, id: int) -> Task:
+	for task in app:
+		if task.id == id:
+			return task
+
+	raise RuntimeError(f"Failed to find task with {id=}.")
+
+
+def _find_job_by_sched_window(task: Task, sched_window: slice) -> Job:
+	for job in task:
+		if job.sched_window == sched_window:
+			return job
+
+	raise RuntimeError(f"Failed to find job with {sched_window=}.")
+
+
+def is_feasible(neighbor: Solution) -> bool:
+	for app in neighbor.problem.graph.apps:
+		for task in app:
+			if task.has_miss() or not task.check_execution_time(neighbor.problem.graph.hyperperiod):
+				print(f"{task.id} : deadline or exec miss")
 				return False
 
-	for app in filter(apps, lambda a: a.ordered):
-		for task in app.tasks:
-			if order_miss(app, task):
+	for app in neighbor.problem.graph.apps:
+		if app.order:
+			if app.has_order_miss():
+				print(f"{app.name} : order miss")
 				return False
 
 	return True
 
 
-# optimization --------------------------------------------------------------------------------------------------------
+def get_neighbors(solution: Solution, ordering: Ordering, sched_check: SchedCheck) -> list[Solution]:
+	# print("=" * 100)
+	candidates = []
+	initial_step = solution.problem.config.params.initial_step
 
-def _optimization(problem: Problem, feasible_solution: dict) -> Solution:
-	return Solution(problem, 0, feasible_solution)
+	for app in solution.problem.graph.apps:
+		for task in app:
+			for job in task:
+				# print(f"{job.offset()=}")
+				if task.wcet <= job.exec_window.stop - (job.exec_window.start + initial_step):
+					neighbor = deepcopy(solution)
 
+					for _app in neighbor.problem.graph.apps:
+						for _task in _app:
+							for _job in _task:
+								_job.execution.clear()
 
-# feasible scheduling -------------------------------------------------------------------------------------------------
+					_app = _find_app_by_name(neighbor.problem.graph, app.name)
+					_task = _find_task_by_id(app, task.id)
+					_job = _find_job_by_sched_window(_task, job.exec_window)
+					_job.exec_window = slice(_job.exec_window.start + initial_step, _job.exec_window.stop)
+					# print(f"{_job.offset()=}")
 
+					candidate = schedule(neighbor.core_jobs, neighbor.problem, ordering)
 
-def _feasible_scheduling(initial_solution: CoreJobMap) -> CoreJobMap:
-	# check if parent
-	return initial_solution
+					if is_feasible(candidate):
+						candidates.append(candidate)
+
+	return candidates
 
 
 # ENTRY POINT #########################################################################################################
@@ -83,21 +120,26 @@ def solve(problem: Problem) -> Solution:
 	"""
 
 	sched_check, ordering = algorithms[problem.config.params.algorithm]
-	initial_solution = schedule(mapping(problem.arch, problem.graph.apps, sched_check), problem, ordering)
 
-	"""
-	feasible_solution = _feasible_scheduling(initial_solution)
-	extensible_solution = _optimization(problem, feasible_solution)
-	"""
+	if global_schedulability_test(problem):
+		core_jobs = mapping(problem.arch, problem.graph.apps, sched_check)
+		initial_solution = schedule(core_jobs, problem, ordering)
+		current = initial_solution
+		generations = 0
+		# get arrays of jobs for all tasks
 
-	current = initial_solution
+		while (candidates := get_neighbors(current, ordering, sched_check)):
+			generations += 1
+			best_candidate = max(candidates, key=lambda c: empty_space(c))
 
-	while (candidates := get_neighbors(current, ordering)):
-		best_candidate = max(candidates, lambda c: c.score)
+			# either < or <=, should be ideally <= to explore full search space
+			if (current_score := empty_space(current)) <= (best_score := empty_space(best_candidate)):
+				current = best_candidate
+			else:
+				break
 
-		if current.score <= best_candidate.score:
-			current = best_candidate
+		logging.info("Solution found for:\t" + str(problem.config.filepaths))
 
-	logging.info("Solution found for:\t" + str(problem.config.filepaths))
-
-	return current
+		return current
+	else:
+		return None
