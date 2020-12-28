@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <graphml>
 	<Graph id="IonicColumns" edgedefault="directed">
-		<Node Id="0" Name="C0" WCET="100" Deadline="1000" CpuId="0" CIL="4">
+		<Node Id="0" Name="C0" WCET="300" Deadline="900" CpuId="0" CIL="4">
 			<Period Value="1000"/>
 		</Node>
 		<Node Id="1" Name="C1" WCET="200" Deadline="1000" CpuId="0" CIL="4">
 			<Period Value="1000"/>
 		</Node>
-		<Node Id="2" Name="C2" WCET="50" Deadline="500" CpuId="0" CIL="4">
+		<Node Id="2" Name="C2" WCET="150" Deadline="500" CpuId="0" CIL="4">
 			<Period Value="550"/>
 		</Node>
 		<Node Id="3" Name="C3" WCET="150" Deadline="500" CpuId="0" CIL="4">
 			<Period Value="1500"/>
 		</Node>
 
-		<Application Name="Propylaea" Inorder="false" CA ="false">
+		<Application Name="Propylaea" Inorder="true" CA ="false">
 			<Runnable Name="C0"/>
 			<Runnable Name="C2"/>
 			<Runnable Name="C1"/>
