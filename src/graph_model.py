@@ -281,15 +281,15 @@ class App(Sequence, Reversible):
 	----------
 	name : str
 		The name of the Application.
-	tasks : list[Task]
-		The tasks within the Application.
 	order : bool
 		Whether or not the order of tasks is significant. Could also be obtained by `self.tasks[:-1].parent is not None`.
+	tasks : list[Task]
+		The tasks within the Application.
 	"""
 
 	name: str
-	tasks: list[Task] = field(compare=False)
 	order: bool
+	tasks: list[Task] = field(compare=False, default_factory=list)
 
 	@cached_property
 	def criticality(self: App) -> Criticality:
@@ -325,6 +325,29 @@ class App(Sequence, Reversible):
 		"""
 
 		return fsum(task.workload for task in self.tasks)
+
+	def has_order_miss(self: App) -> bool:
+		if len(self) < 2 or not self.order:
+			return False
+
+		for i in range(len(self.tasks[:-1])):
+			if self[i + 1].jobs[-1].execution[-1].start < self[i].jobs[-1].execution[-1].stop:
+				return True
+
+		return False
+
+	def __new__(cls: Type[App], name: str, order: bool) -> App:
+		self = super().__new__(cls)  # Must explicitly create the new object
+		# Aside from explicit construction and return, rest of __new__ is same as __init__
+		self.name = name
+		self.order = order
+		self.tasks = []
+
+		return self  # __new__ returns the new object
+
+	def __getnewargs__(self: App) -> tuple[str, bool]:
+		# Return the arguments that *must* be passed to __new__
+		return (self.name, self.order)
 
 	def __lt__(self: App, other: object) -> bool:
 		if isinstance(other, App):
