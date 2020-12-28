@@ -208,7 +208,7 @@
 			<Runnable Name="T41"/>
 		</Application>
 
-		<Application Name="RadarCruise" Inorder="true" CA ="true">
+		<Application Name="RadarCruise" Inorder="false" CA ="true">
 			<Runnable Name="T42"/>
 			<Runnable Name="T43"/>
 			<Runnable Name="T44"/>
