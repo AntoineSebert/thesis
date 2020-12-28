@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Iterator, Reversible, Set
 from dataclasses import dataclass, field
 from functools import cached_property, total_ordering
@@ -14,7 +15,7 @@ from operator import gt, lt
 from pathlib import Path
 from typing import Callable, Collection, Iterable, NamedTuple, TypeVar, Union
 
-from graph_model import App, Criticality, Graph, Job, Task
+from graph_model import App, Graph, Job, Task
 
 from sortedcontainers import SortedSet  # type: ignore
 
@@ -42,7 +43,7 @@ class Core:
 	workload: float = field(default=0.0)
 
 	def __hash__(self: Core) -> int:
-		return hash(str(self.id) + str(self.processor) + str(self.workload))
+		return hash(str(self.id) + str(self.processor.id))
 
 	def __lt__(self: Core, other: Core) -> bool:
 		return self.workload < other.workload
@@ -72,10 +73,13 @@ class Processor(Set, Reversible):
 		The processor within an `Architecture`.
 	cores : SortedSet[Core]
 		The set containing the `Core` objects within the Processor.
+	apps : SortedSet[App]
+		Applications to be scheduled on the Processor.
 	"""
 
 	id: int
-	cores: SortedSet[Core] = field(compare=False)
+	cores: SortedSet[Core] = field(compare=False, default_factory=SortedSet)
+	apps: SortedSet[App] = field(compare=False, default_factory=SortedSet)
 
 	def workload(self: Processor) -> float:
 		""" The workload of the processor.
@@ -137,6 +141,16 @@ class Processor(Set, Reversible):
 		i = "\n" + ("\t" * level)
 
 		return f"{i}cpu {{{i}\tid : {self.id};" + "".join(core.pformat(level + 1) for core in self) + i + "}"
+
+	def __deepcopy__(self: Processor, memo: dict[int, object]) -> Processor:
+		# Deepcopy only the id attribute, then construct the new instance and map the id() of the existing copy to the
+		# new instance in the memo dictionary
+		memo[id(self)] = newself = self.__class__(copy.deepcopy(self.id, memo))
+		# Safe to deepcopy cores now, because backreferences to self will be remapped to newself automatically
+		newself.cores = copy.deepcopy(self.cores, memo)
+		newself.apps = copy.deepcopy(self.apps, memo)
+
+		return newself
 
 
 """An set of `Processor` representing an `Architecture`."""
