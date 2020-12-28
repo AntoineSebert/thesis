@@ -30,9 +30,9 @@ from format import OutputFormat
 
 from log import ColoredHandler
 
-from model import Configuration, FilepathPair, Parameters, Problem, Solution
+from model import Configuration, FilepathPair, Parameters, Problem, Solution, objectives
 
-from solver import algorithms, objectives, solve
+from solver import algorithms, solve
 
 from tqdm import tqdm  # type: ignore
 
@@ -314,7 +314,9 @@ def main() -> int:
 			executor.submit(_wrapper, Configuration(filepath_pair, params), pbar, operations)
 			for filepath_pair in filepath_pairs
 		]
-		results = [future.result() for future in as_completed(futures)]
+
+		for future in as_completed(futures):
+			future.result()
 
 		logging.info(f"Total ellasped time: {process_time()}s.")
 
