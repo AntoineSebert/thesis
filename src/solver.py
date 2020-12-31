@@ -6,11 +6,11 @@
 import logging
 from copy import deepcopy
 
-from graph_model import App, Graph, Job
+from graph_model import Graph
 
 from mapper import mapping
 
-from model import Architecture, Ordering, Problem, Processor, SchedCheck, Solution, Task, algorithms, empty_space
+from model import Ordering, Problem, SchedCheck, Solution, algorithms, empty_space
 
 from scheduler import global_schedulability_test, schedule
 
@@ -20,57 +20,56 @@ from timed import timed_callable
 # FUNCTIONS ###########################################################################################################
 
 
-def _cpu_tasks_map(arch: Architecture, graph: Graph) -> dict[Processor, set[Task]]:
-	cpu_tasks: dict[Processor, set[Task]] = dict.fromkeys(arch, set())
+def _is_feasible(graph: Graph) -> bool:
+	"""Check if an app graph does not break any logical constraints.
+
+	Parameters
+	----------
+	graph : Graph
+		A `Graph`.
+
+	Returns
+	-------
+	bool
+		Returns `True` is all constraints holds, or `False` otherwise.
+	"""
+
+	return graph.check_deadlines() and graph.check_task_ordering() and graph.check_job_executions()
+
+
+def _clear_job_executions(graph: Graph) -> None:
+	"""Clears all the executions of the jobs to avoid execution slices accumulation.
+
+	Parameters
+	----------
+	graph : Graph
+		A `Graph`.
+	"""
 
 	for app in graph.apps:
 		for task in app:
-			cpu_tasks[task.cpu].add(task)
-
-	return cpu_tasks
-
-
-def _find_app_by_name(graph: Graph, name: str) -> App:
-	for app in graph.apps:
-		if app.name == name:
-			return app
-
-	raise RuntimeError(f"Failed to find app with {name=}.")
-
-
-def _find_task_by_id(app: App, id: int) -> Task:
-	for task in app:
-		if task.id == id:
-			return task
-
-	raise RuntimeError(f"Failed to find task with {id=}.")
-
-
-def _find_job_by_sched_window(task: Task, sched_window: slice) -> Job:
-	for job in task:
-		if job.sched_window == sched_window:
-			return job
-
-	raise RuntimeError(f"Failed to find job with {sched_window=}.")
-
-
-def is_feasible(neighbor: Solution) -> bool:
-	for app in neighbor.problem.graph.apps:
-		for task in app:
-			if task.has_miss() or not task.check_execution_time(neighbor.problem.graph.hyperperiod):
-				print(f"{task.id} : deadline or exec miss")
-				return False
-
-	for app in neighbor.problem.graph.apps:
-		if app.order:
-			if app.has_order_miss():
-				print(f"{app.name} : order miss")
-				return False
-
-	return True
+			for job in task:
+				job.execution.clear()
 
 
 def get_neighbors(solution: Solution, ordering: Ordering, sched_check: SchedCheck) -> list[Solution]:
+	"""Gets the feasible scheduled neighbors (candidates) of a Solution.
+
+	Parameters
+	----------
+	solution : Solution
+		A target Solution.
+	ordering : Ordering
+		An ordering, like EDF or RM.
+	sched_check : SchedCheck
+		A schedulability checker.
+
+	Returns
+	-------
+	candidates : list[Solution]
+		A list of candidates, may be empty.
+	"""
+
 	# print("=" * 100)
 	candidates = []
 	initial_step = solution.problem.config.params.initial_step
@@ -81,21 +80,16 @@ def get_neighbors(solution: Solution, ordering: Ordering, sched_check: SchedChec
 				# print(f"{job.offset()=}")
 				if task.wcet <= job.exec_window.stop - (job.exec_window.start + initial_step):
 					neighbor = deepcopy(solution)
+					graph = neighbor.problem.graph
 
-					for _app in neighbor.problem.graph.apps:
-						for _task in _app:
-							for _job in _task:
-								_job.execution.clear()
+					_clear_job_executions(graph)
 
-					_app = _find_app_by_name(neighbor.problem.graph, app.name)
-					_task = _find_task_by_id(app, task.id)
-					_job = _find_job_by_sched_window(_task, job.exec_window)
+					_job = graph.find_app_by_name(app.name).find_task_by_id(task.id).find_job_by_sched_window(job.exec_window)
 					_job.exec_window = slice(_job.exec_window.start + initial_step, _job.exec_window.stop)
-					# print(f"{_job.offset()=}")
 
 					candidate = schedule(neighbor.core_jobs, neighbor.problem, ordering)
 
-					if is_feasible(candidate):
+					if _is_feasible(candidate.problem.graph):
 						candidates.append(candidate)
 
 	return candidates
@@ -115,7 +109,7 @@ def solve(problem: Problem) -> Solution:
 
 	Returns
 	-------
-	solution : Solution
+	Solution
 		A solution for the problem.
 	"""
 

@@ -38,6 +38,9 @@ class Criticality(IntEnum):
 	sta_4 = 4
 
 
+# class Slice
+
+
 @dataclass
 @total_ordering
 class Job(Set, Reversible):
@@ -50,7 +53,7 @@ class Job(Set, Reversible):
 	sched_window : slice
 		The window scheduling time, representing (activation_time, activation_time + deadline).
 	exec_window : slice
-		The window execution time, representing (activation_time + offset, activation_time + local_deadline).
+		The window execution time, taking into account the offset and local deadline.
 	execution : list[slice]
 		Set of execution slices.
 	"""
@@ -62,32 +65,94 @@ class Job(Set, Reversible):
 
 	def duration(self: Job) -> int:
 		"""Computes and caches the duration of the slice.
+
 		Parameters
 		----------
 		self : Job
 			The instance of `Job`.
+
 		Returns
 		-------
 		int
-			The duration of the job.
+			The duration of all the execution slices of the job.
 		"""
 
-		return sum(_slice.stop - _slice.start for _slice in self.execution) if len(self.execution) != 0 else 0
+		return sum((_slice.stop - _slice.start for _slice in self.execution), start=0)
 
+	@cached_property
 	def offset(self: Job) -> int:
-		"""The earliest start time within the execution window."""
+		"""Computes and returns the offset of the job.
+
+		Parameters
+		----------
+		self : Job
+			The instance of `Job`.
+
+		Returns
+		-------
+		int
+			The offset of the job.
+		"""
+
 		return self.exec_window.start - self.sched_window.start
 
+	@cached_property
 	def local_deadline(self: Job) -> int:
-		"""The local deadline within the execution window."""
+		"""Computes and returns the local deadline of the job.
+
+		Parameters
+		----------
+		self : Job
+			The instance of `Job`.
+
+		Returns
+		-------
+		int
+			The local deadline of the job.
+		"""
+
 		return self.exec_window.stop - self.sched_window.stop
 
+	# TODO : rename
 	def has_miss(self: Job) -> bool:
+		"""Checks if all the execution slices are within the scheduling window.
+
+		Parameters
+		----------
+		self : Job
+			The instance of `Job`.
+
+		Returns
+		-------
+		bool
+			Returns `True` if at least one execution slice is out of the scheduling window, or `False` otherwise.
+		"""
+
+		# TODO : order self.execution and check only the first and last
 		for _slice in self.execution:
-			if self.exec_window.stop < _slice.start or self.exec_window.stop < _slice.stop:
+			if _slice.start < self.exec_window.start or _slice.stop < self.exec_window.start or self.exec_window.stop < _slice.start or self.exec_window.stop < _slice.stop:
 				return True
 
 		return False
+
+	def has_deadline_miss(self: Job) -> bool:
+		"""Checks if the deadline of the job is missed.
+
+		Parameters
+		----------
+		self : Job
+			The instance of `Job`.
+
+		Returns
+		-------
+		bool
+			Returns `True` if the last execution slice ends after the scheduling window, or `False` otherwise.
+		"""
+
+		if not self.execution:
+			return False
+		else:
+			return self.execution[-1].stop > self.exec_window.stop
 
 	def __eq__(self: Job, other: object) -> bool:
 		if isinstance(other, Job):
@@ -120,9 +185,37 @@ class Job(Set, Reversible):
 		return hash(str(self.task) + str(self.exec_window) + str(self.sched_window) + str(self.execution))
 
 	def short(self: Job) -> str:
+		"""A short description of a job.
+
+		Parameters
+		----------
+		self : Job
+			The instance of `Job`.
+
+		Returns
+		-------
+		str
+			The short description.
+		"""
+
 		return f"{self.task.short()} [{self.sched_window.start} - {self.sched_window.stop}][{self.exec_window.start} - {self.exec_window.stop}]"
 
 	def pformat(self: Job, level: int = 0) -> str:
+		"""A complete description of a job.
+
+		Parameters
+		----------
+		self : Job
+			The instance of `Job`.
+		level, optional : int
+			The indentation level (default: 0).
+
+		Returns
+		-------
+		str
+			The complete description.
+		"""
+
 		i = "\n" + ("\t" * level)
 		ii = i + "\t"
 
@@ -151,10 +244,10 @@ class Task(Set, Reversible):
 		The deadline of the node.
 	criticality : Criticality
 		The criticality level, [0; 4].
-	jobs : SortedSet[Job]
-		A set of n instances of the task, with n = int(wcet / hyperperiod).
 	parent : Task
 		A list of tasks to be completed before starting.
+	jobs : SortedSet[Job]
+		A set of n instances of the task, with n = int(wcet / hyperperiod).
 	"""
 
 	id: int
@@ -163,7 +256,7 @@ class Task(Set, Reversible):
 	period: int
 	deadline: int
 	criticality: Criticality
-	parent: Task = None
+	parent: Task
 	jobs: SortedSet[Job] = field(default_factory=SortedSet)
 
 	def __eq__(self: Task, other: object) -> bool:
@@ -215,6 +308,19 @@ class Task(Set, Reversible):
 		return (self.id, self.app, self.wcet, self.period, self.deadline, self.criticality)
 
 	def has_miss(self: Task) -> bool:
+		"""Checks if a job of a task is out of its execution window.
+
+		Parameters
+		----------
+		self : Task
+			The instance of `Task`.
+
+		Returns
+		-------
+		bool
+			Returns `True` if at least one job misses its execution window, or `False` otherwise.
+		"""
+
 		for job in self:
 			if job.has_miss():
 				return True
@@ -255,9 +361,37 @@ class Task(Set, Reversible):
 		return self.wcet / self.period
 
 	def short(self: Task) -> str:
+		"""A short description of a task.
+
+		Parameters
+		----------
+		self : Task
+			The instance of `Task`.
+
+		Returns
+		-------
+		str
+			The short description.
+		"""
+
 		return f"{self.app.name} / {self.id}"
 
 	def pformat(self: Task, level: int = 0) -> str:
+		"""A complete description of a task.
+
+		Parameters
+		----------
+		self : Task
+			The instance of `Task`.
+		level, optional : int
+			The indentation level (default: 0).
+
+		Returns
+		-------
+		str
+			The complete description.
+		"""
+
 		i = "\n" + ("\t" * level)
 		ii = i + "\t"
 
@@ -270,6 +404,33 @@ class Task(Set, Reversible):
 			f"criticality : {int(self.criticality)};{ii}"
 			f"jobs {{" + "".join(job.pformat(level + 2) for job in self.jobs) + ii + "}"
 			+ (f"{ii}parent : {self.parent.id};{i}}}" if self.parent is not None else i + "}"))
+
+	def find_job_by_sched_window(self: Task, sched_window: slice) -> Job:
+		"""Find a job that matches a scheduling window.
+
+		Parameters
+		----------
+		self : Task
+			The instance of `Task`.
+		sched_window : slice
+			A slice representing a scheduling window.
+
+		Returns
+		-------
+		Job
+			The matching job.
+
+		Raises
+		------
+		RuntimeError
+			If no matching Job can be found.
+		"""
+
+		for job in self:
+			if job.sched_window == sched_window:
+				return job
+
+		raise RuntimeError(f"Failed to find job with {sched_window=}.")
 
 
 @dataclass(eq=True)
@@ -298,7 +459,7 @@ class App(Sequence, Reversible):
 
 		Parameters
 		----------
-		self
+		self : App
 			The instance of `App`.
 
 		Returns
@@ -327,6 +488,19 @@ class App(Sequence, Reversible):
 		return fsum(task.workload for task in self.tasks)
 
 	def has_order_miss(self: App) -> bool:
+		"""Checks if the application has an order miss.
+
+		Parameters
+		----------
+		self : App
+			The instance of `App`.
+
+		Returns
+		-------
+		bool
+			Returns `True` if at least one order miss is present, or `False` otherwise.
+		"""
+
 		if len(self) < 2 or not self.order:
 			return False
 
@@ -335,6 +509,33 @@ class App(Sequence, Reversible):
 				return True
 
 		return False
+
+	def find_task_by_id(self: App, id: int) -> Task:
+		"""Find a task that matches an index.
+
+		Parameters
+		----------
+		self : Task
+			The instance of `Task`.
+		id : int
+			A task index within the application.
+
+		Returns
+		-------
+		Task
+			A matching task.
+
+		Raises
+		------
+		RuntimeError
+			If no matching task can be found.
+		"""
+
+		for task in self:
+			if task.id == id:
+				return task
+
+		raise RuntimeError(f"Failed to find task with {id=}.")
 
 	def __new__(cls: Type[App], name: str, order: bool) -> App:
 		self = super().__new__(cls)  # Must explicitly create the new object
@@ -377,6 +578,21 @@ class App(Sequence, Reversible):
 		return hash(self.name)
 
 	def pformat(self: App, level: int = 0) -> str:
+		"""A complete description of an application.
+
+		Parameters
+		----------
+		self : App
+			The instance of `Task`.
+		level, optional : int
+			The indentation level (default: 0).
+
+		Returns
+		-------
+		str
+			The complete description.
+		"""
+
 		i = "\n" + ("\t" * level)
 
 		return (i + "app {" + i
@@ -404,7 +620,7 @@ class Graph(NamedTuple):
 
 		Parameters
 		----------
-		self
+		self : Graph
 			The instance of `Graph`.
 
 		Returns
@@ -415,7 +631,115 @@ class Graph(NamedTuple):
 
 		return max(self.apps, key=lambda app: app.criticality).criticality
 
+	def find_app_by_name(self: Graph, name: str) -> App:
+		"""Find an application that matches a name.
+
+		Parameters
+		----------
+		self : Task
+			The instance of `Task`.
+		name : str
+			An application name.
+
+		Returns
+		-------
+		App
+			A matching application.
+
+		Raises
+		------
+		RuntimeError
+			If no matching application can be found.
+		"""
+
+		for app in self.apps:
+			if app.name == name:
+				return app
+
+		raise RuntimeError(f"Failed to find app with {name=}.")
+
+	def check_deadlines(self: Graph) -> bool:
+		"""Checks if the graph has any deadline misses.
+
+		Parameters
+		----------
+		self : Graph
+			The instance of `Graph`.
+
+		Returns
+		-------
+		bool
+			Returns `True` if at least one deadline miss is present, or `False` otherwise.
+		"""
+
+		for app in self:
+			for task in app:
+				for job in task:
+					if job.has_deadline_miss():
+						return False
+
+		return True
+
+	def check_task_executions(self: Graph) -> bool:
+		"""Checks if the graph has any execution misses.
+
+		Parameters
+		----------
+		self : Graph
+			The instance of `Graph`.
+
+		Returns
+		-------
+		bool
+			Returns `True` if at least one execution miss is present, or `False` otherwise.
+		"""
+
+		for app in self:
+			for task in app:
+				if task.has_miss() or not task.check_execution_time(self.hyperperiod):
+					print(f"{task.id} : deadline or exec miss")
+					return False
+
+		return True
+
+	def check_task_ordering(self: Graph) -> bool:
+		"""Checks if the graph has any order misses.
+
+		Parameters
+		----------
+		self : Graph
+			The instance of `Graph`.
+
+		Returns
+		-------
+		bool
+			Returns `True` if at least one order miss is present, or `False` otherwise.
+		"""
+
+		for app in self:
+			if app.order:
+				if app.has_order_miss():
+					print(f"{app.name} : order miss")
+					return False
+
+		return True
+
 	def pformat(self: Graph, level: int = 0) -> str:
+		"""A complete description of a graph.
+
+		Parameters
+		----------
+		self : Graph
+			The instance of `Graph`.
+		level, optional : int
+			The indentation level (default: 0).
+
+		Returns
+		-------
+		str
+			The complete description.
+		"""
+
 		i = "\n" + ("\t" * level)
 
 		return (f"{i}graph {{{i}\thyperperiod : {self.hyperperiod};"

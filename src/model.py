@@ -55,9 +55,37 @@ class Core:
 			return NotImplemented
 
 	def short(self: Core) -> str:
+		"""A short description of a core.
+
+		Parameters
+		----------
+		self : Core
+			The instance of `Core`.
+
+		Returns
+		-------
+		str
+			The short description.
+		"""
+
 		return f"{self.processor.id} / {self.id}"
 
 	def pformat(self: Core, level: int = 0) -> str:
+		"""A complete description of a core.
+
+		Parameters
+		----------
+		self : Core
+			The instance of `Core`.
+		level, optional
+			The indentation level (default: 0).
+
+		Returns
+		-------
+		str
+			The complete description.
+		"""
+
 		return ("\n" + ("\t" * level)
 			+ f"core {{ id : {self.id}; processor : {self.processor.id}; workload: {self.workload}; }}")
 
@@ -82,7 +110,7 @@ class Processor(Set, Reversible):
 	apps: SortedSet[App] = field(compare=False, default_factory=SortedSet)
 
 	def workload(self: Processor) -> float:
-		""" The workload of the processor.
+		"""The workload of the processor.
 
 		Parameters
 		----------
@@ -98,7 +126,7 @@ class Processor(Set, Reversible):
 		return fsum(core.workload for core in self.cores) if len(self.cores) != 0 else 0.0
 
 	def get_min_core(self: Processor) -> Core:
-		""" The core on the processor with the lowest workload.
+		"""The core on the processor with the lowest workload.
 
 		Parameters
 		----------
@@ -107,8 +135,8 @@ class Processor(Set, Reversible):
 
 		Returns
 		-------
-		core
-			A core.
+		int
+			The core with the minimal workload.
 		"""
 
 		return min(self.cores)
@@ -138,13 +166,30 @@ class Processor(Set, Reversible):
 		return hash(str(self.id))
 
 	def pformat(self: Processor, level: int = 0) -> str:
+		"""A complete description of a processor.
+
+		Parameters
+		----------
+		self : Processor
+			The instance of `Processor`.
+		level, optional : int
+			The indentation level (default: 0).
+
+		Returns
+		-------
+		str
+			The complete description.
+		"""
+
 		i = "\n" + ("\t" * level)
 
 		return f"{i}cpu {{{i}\tid : {self.id};" + "".join(core.pformat(level + 1) for core in self) + i + "}"
 
 	def __deepcopy__(self: Processor, memo: dict[int, object]) -> Processor:
-		# Deepcopy only the id attribute, then construct the new instance and map the id() of the existing copy to the
-		# new instance in the memo dictionary
+		"""Deepcopy only the id attribute, then construct the new instance and map the id() of the existing copy to the
+		new instance in the memo dictionary.
+		"""
+
 		memo[id(self)] = newself = self.__class__(copy.deepcopy(self.id, memo))
 		# Safe to deepcopy cores now, because backreferences to self will be remapped to newself automatically
 		newself.cores = copy.deepcopy(self.cores, memo)
@@ -172,6 +217,21 @@ class FilepathPair(NamedTuple):
 	cfg: Path
 
 	def pformat(self: FilepathPair, level: int = 0) -> str:
+		"""A complete description of a pair of file paths.
+
+		Parameters
+		----------
+		self : FilepathPair
+			The instance of `FilepathPair`.
+		level, optional : int
+			The indentation level (default: 0).
+
+		Returns
+		-------
+		str
+			The complete description.
+		"""
+
 		i = "\n" + ("\t" * level)
 
 		return f"{i}case {{{i}\ttsk: {str(self.tsk)};{i}\tcfg: {str(self.cfg)};{i}}}"
@@ -201,6 +261,21 @@ class Parameters(NamedTuple):
 	trial_limit: int
 
 	def pformat(self: Parameters, level: int = 0) -> str:
+		"""A complete description of the parameters of a problem.
+
+		Parameters
+		----------
+		self : Parameters
+			The instance of `Parameters`.
+		level, optional : int
+			The indentation level (default: 0).
+
+		Returns
+		-------
+		str
+			The complete description.
+		"""
+
 		i = "\n" + ("\t" * level)
 
 		return (f"{i}params {{{i}"
@@ -238,6 +313,21 @@ class Configuration(NamedTuple):
 		}
 
 	def pformat(self: Configuration, level: int = 0) -> str:
+		"""A complete description of the configuration of a problem.
+
+		Parameters
+		----------
+		self : Configuration
+			The instance of `Configuration`.
+		level, optional : int
+			The indentation level (default: 0).
+
+		Returns
+		-------
+		str
+			The complete description.
+		"""
+
 		i = "\n" + ("\t" * level)
 
 		return (f"{i}configuration {{"
@@ -263,6 +353,21 @@ class Problem(NamedTuple):
 	graph: Graph
 
 	def pformat(self: Problem, level: int = 0) -> str:
+		"""A complete description of a problem.
+
+		Parameters
+		----------
+		self : Problem
+			The instance of `Problem`.
+		level, optional : int
+			The indentation level (default: 0).
+
+		Returns
+		-------
+		str
+			The complete description.
+		"""
+
 		i = "\n" + ("\t" * level)
 
 		return (i + "\nproblem {" + self.config.pformat(level + 1)
@@ -289,9 +394,39 @@ class Solution:
 
 	@cached_property
 	def score(self: Solution, scoring: Scoring) -> Union[int, float]:
+		"""The score of the solution.
+
+		Parameters
+		----------
+		self : Solution
+			The instance of `Solution`.
+		scoring : Scoring
+			A scoring algorithm.
+
+		Returns
+		-------
+		Union[int, float]
+			The score of the solution.
+		"""
+
 		return self.problem.config.params.objective(self.core_jobs)
 
 	def pformat(self: Solution, level: int = 0) -> str:
+		"""A complete description of a solution.
+
+		Parameters
+		----------
+		self : Solution
+			The instance of `Solution`.
+		level, optional
+			The indentation level (default: 0).
+
+		Returns
+		-------
+		str
+			The complete description.
+		"""
+
 		i = "\n" + ("\t" * level)
 
 		return (i + "solution {"
@@ -318,6 +453,16 @@ SchedCheck = Callable[[Collection[Task], Collection[Core]], bool]
 Ordering = Callable[[Iterable[Job]], Iterable[Task]]
 Scoring = Callable[[CoreJobMap], Union[int, float]]
 
+"""
+class scheduler/ordinator
+	attr
+		sec margin
+		name
+	members
+		global sched check
+		local sched check
+		ordering
+"""
 
 """Algorithms for scheduling, containing the sufficient condition, an ordering function."""
 algorithms: dict[str, tuple[SchedCheck, Ordering]] = {

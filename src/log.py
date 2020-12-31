@@ -34,7 +34,7 @@ class Singleton(type):
 		----------
 		cls : __class__
 			The caller class.
-		args : Tuple[object]
+		args : tuple[object]
 			A tuple of positional arguments values (default is empty tuple).
 		kwargs : dict[str, object]
 			A dict of keyword arguments values (default is empty dict).

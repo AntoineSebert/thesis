@@ -13,12 +13,12 @@ from sortedcontainers import SortedSet  # type: ignore
 
 
 def _print_initial_mapping(core_jobs: CoreJobMap) -> None:
-	"""Prints an initial mapping.
+	"""Prints a mapping of cores to jobs.
 
 	Parameters
 	----------
-	core_tasks : CoreJobMap
-		A mapping of cores to tasks.
+	core_jobs : CoreJobMap
+		A mapping of cores to jobs.
 	"""
 
 	for core, jobs in core_jobs.items():
@@ -27,8 +27,8 @@ def _print_initial_mapping(core_jobs: CoreJobMap) -> None:
 			print(job.pformat(1))
 
 
-def _try_map(core_tasks: CoreTaskMap, app: App, sched_check: SchedCheck) -> bool:
-	"""Tries to map all tasks of an application to the cores of a processor.
+def _map_tasks_to_cores(core_tasks: CoreTaskMap, app: App) -> None:
+	"""Maps all tasks of an application to the cores of a processor.
 
 	Parameters
 	----------
@@ -36,15 +36,9 @@ def _try_map(core_tasks: CoreTaskMap, app: App, sched_check: SchedCheck) -> bool
 		A mapping of cores to tasks.
 	app : App
 		An application to map.
-	sched_check : SchedCheck
-		A scheduling check.
-
-	Returns
-	-------
-	bool
-		Returns `True` if the application have been mapped, or `False` otherwise.
 	"""
 
+	# ue cpu and cpu.get_min_core()
 	core_pqueue: PriorityQueue = PriorityQueue(maxsize=len(core_tasks.keys()))
 
 	for core in core_tasks.keys():
@@ -55,8 +49,6 @@ def _try_map(core_tasks: CoreTaskMap, app: App, sched_check: SchedCheck) -> bool
 		core_tasks[core].add(task)
 		core.workload += task.workload
 		core_pqueue.put(core)
-
-	return True
 
 
 # ENTRY POINT #########################################################################################################
@@ -74,6 +66,11 @@ def mapping(arch: Architecture, apps: SortedSet[App], sched_check: SchedCheck) -
 	-------
 	core_tasks : CoreTaskMap
 		A mapping of cores to tasks.
+
+	Raises
+	------
+	RuntimeError
+		If an application cannot be scheduled on the least busy processor.
 	"""
 
 	core_tasks = {core: SortedSet() for cpu in arch for core in cpu}
@@ -85,10 +82,11 @@ def mapping(arch: Architecture, apps: SortedSet[App], sched_check: SchedCheck) -
 	for app in apps:
 		cpu = cpu_pqueue.get()
 
-		if (not cpu.apps or sched_check(app, cpu)) and _try_map(core_tasks, app, sched_check):
+		if not cpu.apps or sched_check(app, cpu):
+			_map_tasks_to_cores(core_tasks, app)  # pass cpu
 			cpu.apps.add(app)
 		else:
-			raise RuntimeError(f"Initial mapping failed with app : '{app.name}'")
+			raise RuntimeError(f"Initial mapping failed with app '{app.name}' on CPU '{cpu.id}'.")
 
 		cpu_pqueue.put(cpu)
 

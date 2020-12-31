@@ -23,6 +23,14 @@ from timed import timed_callable
 
 
 def _print_jobs(graph: Graph) -> None:
+	"""Prints the jobs for all tasks.
+
+	Parameters
+	----------
+	graph : Graph
+		An app graph.
+	"""
+
 	for app in graph.apps:
 		for task in app:
 			for job in task:
@@ -30,7 +38,7 @@ def _print_jobs(graph: Graph) -> None:
 
 
 def _import_arch(filepath: Path) -> Architecture:
-	"""Returns an architecture from a architecture file.
+	"""Returns an architecture extracted from a architecture file.
 
 	Parameters
 	----------
@@ -53,7 +61,7 @@ def _import_arch(filepath: Path) -> Architecture:
 
 
 def _compute_hyperperiod(apps: list[App]) -> int:
-	"""Computes the hyperperiod.
+	"""Computes the hyperperiod from a list of apps.
 
 	Parameters
 	----------
@@ -84,8 +92,8 @@ def _create_jobs(apps: list[App], hyperperiod: int) -> SortedSet[App]:
 
 	Returns
 	-------
-	apps : list[App]
-		A list of applications whose tasks have been populated with jobs.
+	apps : SortedSet[App]
+		A set of applications whose tasks have been populated with jobs.
 	"""
 
 	for app in apps:
@@ -97,7 +105,7 @@ def _create_jobs(apps: list[App], hyperperiod: int) -> SortedSet[App]:
 	return apps
 
 
-def _import_graph(filepath: Path, arch: Architecture) -> Graph:
+def _import_graph(filepath: Path) -> Graph:
 	"""Creates the graph from the tasks file, then returns it.
 
 	Parameters
@@ -160,11 +168,14 @@ def build(config: Configuration) -> Problem:
 		A `Problem` generated from the test case.
 	"""
 
-	arch = _import_arch(config.filepaths.cfg)
-	logging.info("Imported architecture from " + config.filepaths.cfg.name)
+	cfg = config.filepaths.cfg
+	tsk = config.filepaths.tsk
 
-	graph = _import_graph(config.filepaths.tsk, arch)
-	logging.info("Imported graphs from " + config.filepaths.tsk.name)
+	arch = _import_arch(cfg)
+	logging.info("Imported architecture from " + cfg.name)
+
+	graph = _import_graph(tsk)
+	logging.info("Imported graphs from " + tsk.name)
 
 	# _print_jobs(graph)
 

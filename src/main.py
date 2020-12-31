@@ -184,7 +184,7 @@ def _get_filepath_pairs(folder_path: Path, recursive: bool = False) -> set[Filep
 	----------
 	folder_path : Path
 		A `Path` from which build the filepath pairs of`*.tsk` and `*.cfg` files.
-	recursive : bool
+	recursive : bool, optional
 		Toggles the recursive search for cases (default: False).
 		All the folders and subfolders containing at least one `*.tsk` and `*.cfg` file will be taken.
 
@@ -263,7 +263,7 @@ def _wrapper(config: Configuration, pbar: tqdm, operations: list[Callable[[INPUT
 		A configuration for the scheduling problem.
 	pbar : tqdm
 		A progress bar to update each time an action of the test case in completed.
-	operations : List[Callable[[INPUT], OUTPUT]]
+	operations : list[Callable[[INPUT], OUTPUT]]
 		A list of chained operations to perform from a filepath pair.
 
 	Returns
@@ -285,12 +285,17 @@ def _wrapper(config: Configuration, pbar: tqdm, operations: list[Callable[[INPUT
 
 
 def main() -> int:
-	"""Script entry point.
+	"""Program entry point.
 
 	Returns
 	-------
 	int
-		Returns `-1` if errors have been encountered, and a list of formatted `Solution` for the test cases otherwise.
+		Returns `-1` if errors have been encountered, and 0 otherwise.
+
+	Raises
+	------
+	FileNotFoundError
+		If the list of file path pairs is empty.
 	"""
 
 	args = _create_cli_parser().parse_args()
@@ -305,7 +310,7 @@ def main() -> int:
 		filepath_pair.tsk.name + "\t" + filepath_pair.cfg.name for filepath_pair in filepath_pairs
 	))
 
-	operations = [build, solve, OutputFormat[args.format]]  # add evaluation
+	operations = [build, solve, OutputFormat[args.format]]
 
 	with ThreadPoolExecutor(max_workers=len(filepath_pairs)) as executor,\
 		tqdm(total=len(filepath_pairs) * len(operations)) as pbar:

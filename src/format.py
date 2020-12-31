@@ -157,14 +157,32 @@ def _raw_format(solution: Solution) -> str:
 	return str(solution)
 
 
-def _draw_scale(g: Element, hyperperiod: int, x: int, y: int) -> Element:
-	for iii in range(0, int(hyperperiod / 100)):
+def _draw_scale(g: Element, length: int, x: int, y: int) -> Element:
+	"""Creates an XML element representing a scale bar of given length at a given position.
+	The big markers are positioned at 0 and every multiple of 1000, and the small ones at every multiple of 100.
+
+	Parameters
+	----------
+	g : Element
+		An XML element to which the scale element will be added.
+	length : int
+		The length of the scale.
+	x, y : int
+		The position of the scale.
+
+	Returns
+	-------
+	g : Element
+		An XML element to which the scale bar have been appended.
+	"""
+
+	for iii in range(0, int(length / 100)):
 		SubElement(g, "line", {
 			"x1": str(x + 10 + (iii * 100)), "y1": str(y + 40), "x2": str(x + 10 + (iii * 100)), "y2": str(y + 60),
 			"stroke": 'black',
 		})
 
-	for iii in range(1, int(hyperperiod / 1000)):
+	for iii in range(1, int(length / 1000)):
 		SubElement(g, "line", {
 			"x1": str(x + 10 + (iii * 1000)), "y1": str(y + 20), "x2": str(x + 10 + (iii * 1000)), "y2": str(y + 80),
 			"stroke": 'black',
@@ -174,18 +192,41 @@ def _draw_scale(g: Element, hyperperiod: int, x: int, y: int) -> Element:
 		).text = str(iii * 1000)
 
 	SubElement(g, "line", {"x1": str(x + 10), "y1": str(y + 20), "x2": str(x + 10), "y2": str(y + 80), "stroke": 'black'})
+
+	margin = str(x + length)
+
 	SubElement(g, "line", {
-		"x1": str(x + 10), "y1": str(y + 50), "x2": str(x + hyperperiod), "y2": str(y + 50), "stroke": 'black',
+		"x1": str(x + 10), "y1": str(y + 50), "x2": margin, "y2": str(y + 50), "stroke": 'black',
 	})
-	SubElement(g, "line", {
-		"x1": str(x + hyperperiod), "y1": str(y + 20), "x2": str(x + hyperperiod), "y2": str(y + 80), "stroke": 'black',
-	})
+	SubElement(g, "line", {"x1": margin, "y1": str(y + 20), "x2": margin, "y2": str(y + 80), "stroke": 'black'})
 
 	return g
 
 
 def _draw_core(g: Element, core: Core, x: int, y: int, h: int, w: int, hyperperiod: int, mapping: CoreJobMap,
 	colors: dict[Criticality, str]) -> Element:
+	"""Creates an XML element representing a core, with all the slices scheduled on it.
+
+	Parameters
+	----------
+	g : Element
+		An XML element to which the core element will be added.
+	core : Core
+		A source core.
+	x, y, h, w : int
+		The dimensions of the XML element.
+	hyperperiod : int
+		The hyperperiod.
+	mapping : CoreJobMap
+		A mapping of cores to a set of jobs.
+	colors : dict[Criticality, str]
+		A mapping of criticalities to colors.
+
+	Returns
+	-------
+	g : Element
+		An XML element to which the core have been appended.
+	"""
 
 	SubElement(g, "rect", {
 		"x": str(x), "y": str(y), "height": str(h), "width": str(w),
@@ -212,7 +253,7 @@ def _draw_core(g: Element, core: Core, x: int, y: int, h: int, w: int, hyperperi
 
 		_draw_scale(g, hyperperiod, x, y)
 
-	return core
+	return g
 
 
 @timed_callable("Formatting the solution to SVG...")
@@ -295,8 +336,7 @@ def _svg_format(solution: Solution) -> str:
 			g,
 			"rect",
 			{
-				"x": str(cpu_x), "y": str(cpu_y[i]),
-				"width": str(cpu_width), "height": str(cpu_height),
+				"x": str(cpu_x), "y": str(cpu_y[i]), "width": str(cpu_width), "height": str(cpu_height),
 				"rx": '20',
 				"fill": 'black',
 				"opacity": "0.5",
@@ -320,7 +360,7 @@ def _svg_format(solution: Solution) -> str:
 
 @unique
 class OutputFormat(Enum):
-	"""An enumeratino those purpose it to map format keywords to formatting functions.
+	"""An enumeration those purpose it to map format keywords to formatting functions.
 
 	Attributes
 	----------
