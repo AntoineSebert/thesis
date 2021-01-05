@@ -193,7 +193,7 @@ def _draw_scale(g: Element, length: int, x: int, y: int) -> Element:
 
 	SubElement(g, "line", {"x1": str(x + 10), "y1": str(y + 20), "x2": str(x + 10), "y2": str(y + 80), "stroke": 'black'})
 
-	margin = str(x + length)
+	margin = str(x + length + 10)
 
 	SubElement(g, "line", {
 		"x1": str(x + 10), "y1": str(y + 50), "x2": margin, "y2": str(y + 50), "stroke": 'black',
@@ -241,15 +241,15 @@ def _draw_core(g: Element, core: Core, x: int, y: int, h: int, w: int, hyperperi
 			for i, _slice in enumerate(job.execution):
 				slice_rect = SubElement(g, "rect", {
 					"x": str(x + 10 + _slice.start), "y": str(y + 30),
-					"height": "40", "width": str(_slice.stop - _slice.start),
+					"height": "40", "width": str(len(_slice)),
 					"rx": '10',
 					"fill": colors[job.task.criticality],
 					"stroke": "black",
 				})
 				SubElement(slice_rect, "title").text = f"App : {job.task.app.name}"
 				SubElement(
-					g, "text", {"x": str(x + 15 + _slice.start), "y": str(y + 90), "fill": "black"},
-				).text = f"T{job.task.id}-J{job.task.jobs.index(job) + 1}/{len(job.task)}-S{i + 1}/{len(job.execution)}"
+					g, "text", {"x": str(x + 15 + _slice.start), "y": str(y + 90), "fill": "black", "font-size": "smaller"},
+				).text = f"T{job.task.id}-J{int(job.sched_window.start / job.task.period) + 1}/{len(job.task)}-S{i + 1}/{len(job.execution)}"
 
 		_draw_scale(g, hyperperiod, x, y)
 
@@ -351,7 +351,7 @@ def _svg_format(solution: Solution) -> str:
 
 	indent(svg, space="\t")
 	_svg = tostring(svg, encoding="unicode", xml_declaration=True)
-	#print(_svg)
+	print(_svg)
 
 	return _svg
 
