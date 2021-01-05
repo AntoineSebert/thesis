@@ -7,12 +7,13 @@
 from __future__ import annotations
 
 
-from collections.abc import Iterator, Reversible, Sequence, Set
+from collections.abc import Iterator, Reversible, Sequence, Set, Sized
+from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import IntEnum, unique
 from functools import cached_property, total_ordering
 from math import fsum
-from typing import NamedTuple, Type
+from typing import Union, overload
 
 from sortedcontainers import SortedSet  # type: ignore
 
@@ -38,13 +39,141 @@ class Criticality(IntEnum):
 	sta_4 = 4
 
 
-# class Slice
+@total_ordering
+class Slice(Sized):
+	"""Represents an execution slice of a task.
+
+	Attributes
+	----------
+	job : Job
+		The job the execution slice belongs to.
+	start : int
+		The start time of the execution slice.
+	stop : int
+		The stop time of the execution slice.
+	"""
+
+	job: Job
+	start: int
+	stop: int
+
+	def __init__(self: Slice, job: Job, start: int, stop: int) -> None:
+		if stop <= start:
+			raise RuntimeError(f"Cannot instantiate Slice with {start=} and {stop=}.")
+		elif start < job.sched_window.start or stop > job.sched_window.stop:
+			raise RuntimeError(f"Cannot instantiate Slice with {start=} and {stop=}: does not match {job.exec_window}.")
+
+		self.job = job
+		self.start = start
+		self.stop = stop
+
+	# HASHABLE
+
+	def __hash__(self: Slice) -> int:
+		return hash(str(self.job) + str(self.start) + str(self.stop))
+
+	# TOTAL ORDERING
+
+	def __eq__(self: Slice, other: object) -> bool:
+		"""
+		self  |-----|
+		other |-----|
+		"""
+
+		if isinstance(other, Slice):
+			return self.start == other.start and self.stop == other.stop
+		else:
+			return NotImplemented
+
+	def __gt__(self: Slice, other: object) -> bool:
+		"""
+		self          |-----|
+		other |-----|
+		"""
+
+		if isinstance(other, Slice):
+			return other.stop <= self.start and other.stop < self.stop
+		else:
+			return NotImplemented
+
+	def __ge__(self: Slice, other: object) -> bool:
+		"""
+		self  |---------|
+		other |-----|
+		"""
+
+		if isinstance(other, Slice):
+			return other.start <= self.start and other.stop < self.stop
+		else:
+			return NotImplemented
+
+	def __le__(self: Slice, other: object) -> bool:
+		"""
+		self  |---------|
+		other     |-----|
+		"""
+
+		if isinstance(other, Slice):
+			return self.start < other.start and self.stop <= other.stop
+		else:
+			return NotImplemented
+
+	def __lt__(self: Slice, other: object) -> bool:
+		"""
+		self  |-----|
+		other         |-----|
+		"""
+
+		if isinstance(other, Slice):
+			return self.start < other.start and self.stop <= other.start
+		else:
+			return NotImplemented
+
+	def intersect(self: Slice, other: object) -> bool:
+		"""Checks if two slices intersect.
+		https://stackoverflow.com/questions/3269434/whats-the-most-efficient-way-to-test-two-integer-ranges-for-overlap
+
+		self  |-----|
+		other    |-----|
+		"""
+
+		if isinstance(other, Slice):
+			return self.start < other.stop and other.start < self.stop
+		elif isinstance(other, slice):
+			return self.start < other.stop and other.start < self.stop
+		else:
+			return NotImplemented
+
+	def __sub__(self: Slice, other: object) -> Slice:
+		""" Assuming self > other
+		self  |-----|
+					|--|
+		other          |-----|
+		"""
+
+		if isinstance(other, Slice):
+			if other.stop < self.start:
+				return Slice(self.job, other.stop, self.start)
+			else:
+				return Slice(self.job, 0, 0)
+		else:
+			return NotImplemented
+
+	# SIZED
+
+	def __len__(self: Slice) -> int:
+		return self.stop - self.start
+
+	# STRING
+
+	def __str__(self: Slice) -> str:
+		return f"<{self.job.short()}:{self.start} - {self.stop}>"
 
 
 @dataclass
 @total_ordering
 class Job(Set, Reversible):
-	"""Represents an execution slice of a task.
+	"""Represents an instance of a task.
 
 	Attributes
 	----------
@@ -54,14 +183,14 @@ class Job(Set, Reversible):
 		The window scheduling time, representing (activation_time, activation_time + deadline).
 	exec_window : slice
 		The window execution time, taking into account the offset and local deadline.
-	execution : list[slice]
+	execution : SortedSet[Slice]
 		Set of execution slices.
 	"""
 
 	task: Task
 	sched_window: slice
 	exec_window: slice
-	execution: list[slice] = field(default_factory=list)
+	execution: SortedSet[Slice] = field(default_factory=SortedSet)
 
 	def duration(self: Job) -> int:
 		"""Computes and caches the duration of the slice.
@@ -77,7 +206,7 @@ class Job(Set, Reversible):
 			The duration of all the execution slices of the job.
 		"""
 
-		return sum((_slice.stop - _slice.start for _slice in self.execution), start=0)
+		return sum((len(_slice) for _slice in self), start=0)
 
 	@cached_property
 	def offset(self: Job) -> int:
@@ -113,8 +242,7 @@ class Job(Set, Reversible):
 
 		return self.exec_window.stop - self.sched_window.stop
 
-	# TODO : rename
-	def has_miss(self: Job) -> bool:
+	def has_execution_miss(self: Job) -> bool:
 		"""Checks if all the execution slices are within the scheduling window.
 
 		Parameters
@@ -128,12 +256,7 @@ class Job(Set, Reversible):
 			Returns `True` if at least one execution slice is out of the scheduling window, or `False` otherwise.
 		"""
 
-		# TODO : order self.execution and check only the first and last
-		for _slice in self.execution:
-			if _slice.start < self.exec_window.start or _slice.stop < self.exec_window.start or self.exec_window.stop < _slice.start or self.exec_window.stop < _slice.stop:
-				return True
-
-		return False
+		return self.__len__() == 0 or self.has_deadline_miss() or self.has_offset_miss()
 
 	def has_deadline_miss(self: Job) -> bool:
 		"""Checks if the deadline of the job is missed.
@@ -149,40 +272,26 @@ class Job(Set, Reversible):
 			Returns `True` if the last execution slice ends after the scheduling window, or `False` otherwise.
 		"""
 
-		if not self.execution:
-			return False
-		else:
-			return self.execution[-1].stop > self.exec_window.stop
+		return self.execution[-1].stop > self.exec_window.stop
 
-	def __eq__(self: Job, other: object) -> bool:
-		if isinstance(other, Job):
-			return self.task == other.task and self.sched_window == other.sched_window
-		else:
-			return NotImplemented
+	def has_offset_miss(self: Job) -> bool:
+		"""Checks if the offset of the job is missed.
 
-	def __lt__(self: Job, other: object) -> bool:
-		if isinstance(other, Job):
-			return self.exec_window.start < other.exec_window.start
-		else:
-			return NotImplemented
+		Parameters
+		----------
+		self : Job
+			The instance of `Job`.
 
-	def __contains__(self: Job, item: object) -> bool:
-		if isinstance(item, slice):
-			return item in self.execution
-		else:
-			return NotImplemented
+		Returns
+		-------
+		bool
+			Returns `True` if the last execution slice starts before the scheduling window, or `False` otherwise.
+		"""
 
-	def __iter__(self: Job) -> Iterator[slice]:
-		return iter(self.execution)
+		return self.execution[0].start < self.exec_window.start
 
-	def __reversed__(self: Job) -> Iterator[slice]:
-		return reversed(self.execution)
-
-	def __len__(self: Job) -> int:
-		return len(self.execution)
-
-	def __hash__(self: Job) -> int:
-		return hash(str(self.task) + str(self.exec_window) + str(self.sched_window) + str(self.execution))
+	def has_wcet_miss(self: Job) -> bool:
+		return self.duration() != self.task.wcet
 
 	def short(self: Job) -> str:
 		"""A short description of a job.
@@ -221,8 +330,62 @@ class Job(Set, Reversible):
 
 		return (f"{i}job {{{ii}"
 			f"task : {self.task.app.name} / {self.task.id};{ii}"
-			f"exec_window : {self.exec_window} / {self.duration()};{ii}"
-			f"execution {{" + "".join(f"{ii}\t{_slice};" for _slice in self.execution) + ii + "}" + i + "}")
+			f"window : {self.sched_window} / {self.exec_window} / {self.duration()};{ii}"
+			f"execution {{" + "".join(f"{ii}\t{_slice.start} - {_slice.stop};" for _slice in self) + ii + "}" + i + "}")
+
+	# HASHABLE
+
+	def __hash__(self: Job) -> int:
+		return hash(str(self.task) + str(self.sched_window))
+
+	# TOTAL ORDERING
+
+	def __eq__(self: Job, other: object) -> bool:
+		if isinstance(other, Job):
+			return self.task == other.task and self.sched_window == other.sched_window
+		else:
+			return NotImplemented
+
+	def __lt__(self: Job, other: object) -> bool:
+		if isinstance(other, Job):
+			return self.exec_window.start < other.exec_window.start
+		else:
+			return NotImplemented
+
+	# SET
+
+	def __contains__(self: Job, item: object) -> bool:
+		if isinstance(item, slice):
+			return self.execution.__contains__(item)
+		else:
+			return NotImplemented
+
+	def __len__(self: Job) -> int:
+		return self.execution.__len__()
+
+	# REVERSIBLE
+
+	def __reversed__(self: Job) -> Iterator[Slice]:
+		return self.execution.__reversed__()
+
+	# ITERABLE
+
+	def __iter__(self: Job) -> Iterator[Slice]:
+		return self.execution.__iter__()
+
+	# DEEPCOPY
+
+	def __deepcopy__(self, memo):
+		cls = self.__class__
+		result = cls.__new__(cls)
+		memo[id(self)] = result
+
+		result.task = self.task
+		result.sched_window = self.sched_window
+		result.exec_window = self.exec_window
+		result.execution = SortedSet()
+
+		return result
 
 
 @dataclass

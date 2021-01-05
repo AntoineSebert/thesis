@@ -92,6 +92,8 @@ class Core:
 	def __lt__(self: Core, other: Core) -> bool:
 		return self.workload < other.workload
 
+	# DEEPCOPY
+
 	def __deepcopy__(self: Core, memo) -> Processor:
 		cls = self.__class__
 		result = cls.__new__(cls)
