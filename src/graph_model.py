@@ -542,7 +542,7 @@ class App(Sequence, Reversible):
 
 	name: str
 	order: bool
-	tasks: list[Task] = field(compare=False, default_factory=list)
+	tasks: list[Task] = field(default_factory=list)
 
 	@cached_property
 	def criticality(self: App) -> Criticality:
@@ -560,7 +560,7 @@ class App(Sequence, Reversible):
 			The maximal criticality within `self.tasks`, assuming a non-empty list of tasks.
 		"""
 
-		return max(self.tasks, key=lambda task: task.criticality).criticality
+		return max(self, key=lambda task: task.criticality).criticality
 
 	@cached_property
 	def workload(self: App) -> float:
@@ -577,97 +577,7 @@ class App(Sequence, Reversible):
 			The workload of the app.
 		"""
 
-		return fsum(task.workload for task in self.tasks)
-
-	def has_order_miss(self: App) -> bool:
-		"""Checks if the application has an order miss.
-
-		Parameters
-		----------
-		self : App
-			The instance of `App`.
-
-		Returns
-		-------
-		bool
-			Returns `True` if at least one order miss is present, or `False` otherwise.
-		"""
-
-		if len(self) < 2 or not self.order:
-			return False
-
-		for i in range(len(self.tasks[:-1])):
-			if self[i + 1].jobs[-1].execution[-1].start < self[i].jobs[-1].execution[-1].stop:
-				return True
-
-		return False
-
-	def find_task_by_id(self: App, id: int) -> Task:
-		"""Find a task that matches an index.
-
-		Parameters
-		----------
-		self : Task
-			The instance of `Task`.
-		id : int
-			A task index within the application.
-
-		Returns
-		-------
-		Task
-			A matching task.
-
-		Raises
-		------
-		RuntimeError
-			If no matching task can be found.
-		"""
-
-		for task in self:
-			if task.id == id:
-				return task
-
-		raise RuntimeError(f"Failed to find task with {id=}.")
-
-	def __new__(cls: Type[App], name: str, order: bool) -> App:
-		self = super().__new__(cls)  # Must explicitly create the new object
-		# Aside from explicit construction and return, rest of __new__ is same as __init__
-		self.name = name
-		self.order = order
-		self.tasks = []
-
-		return self  # __new__ returns the new object
-
-	def __getnewargs__(self: App) -> tuple[str, bool]:
-		# Return the arguments that *must* be passed to __new__
-		return (self.name, self.order)
-
-	def __lt__(self: App, other: object) -> bool:
-		if isinstance(other, App):
-			return self.criticality < other.criticality
-		else:
-			return NotImplemented
-
-	def __getitem__(self: App, key: int) -> Task:
-		return self.tasks[key]
-
-	def __contains__(self: App, item: object) -> bool:
-		if isinstance(item, Task):
-			return item.app is self and item in self.tasks
-		else:
-			return NotImplemented
-
-	def __iter__(self: App) -> Iterator[Task]:
-		return iter(self.tasks)
-
-	def __reversed__(self: App) -> Iterator[Task]:
-		return reversed(self.tasks)
-
-	def __len__(self: App) -> int:
-		return len(self.tasks)
-
-	def __hash__(self: App) -> int:
-		return hash(self.name)
+		return fsum(task.workload for task in self)
 
 	def pformat(self: App, level: int = 0) -> str:
 		"""A complete description of an application.
@@ -692,8 +602,60 @@ class App(Sequence, Reversible):
 			+ "".join(task.pformat(level + 2) for task in self)
 		+ i + "\t}" + i + "}")
 
+	# HASHABLE
 
-class Graph(NamedTuple):
+	def __hash__(self: App) -> int:
+		return hash(self.name)
+
+	# TOTAL ORDERING
+
+	def __eq__(self: App, other: object) -> bool:
+		if isinstance(other, App):
+			return self.name == other.name
+		else:
+			return NotImplemented
+
+	def __lt__(self: App, other: object) -> bool:
+		if isinstance(other, App):
+			return self.criticality < other.criticality
+		else:
+			return NotImplemented
+
+	# SEQUENCE
+
+	def __contains__(self: App, item: object) -> bool:
+		if isinstance(item, Task):
+			return self.tasks.__contains__(item)
+		else:
+			return NotImplemented
+
+	@overload
+	def __getitem__(self: App, key: int) -> Task:
+		return self.tasks.__getitem__(key)
+
+	@overload
+	def __getitem__(self: App, key: slice) -> list[Task]:
+		return self.tasks.__getitem__(key)
+
+	def __getitem__(self, key):
+		return self.tasks.__getitem__(key)
+
+	def __len__(self: App) -> int:
+		return self.tasks.__len__()
+
+	# REVERSIBLE
+
+	def __reversed__(self: App) -> Iterator[Task]:
+		return self.tasks.__reversed__()
+
+	# ITERABLE
+
+	def __iter__(self: App) -> Iterator[Task]:
+		return self.tasks.__iter__()
+
+
+@dataclass
+class Graph(Set, Reversible):
 	"""A DAG containing apps and an hyperperiod.
 
 	Attributes
@@ -721,100 +683,7 @@ class Graph(NamedTuple):
 			The maximal criticality within `self.apps`, assuming a non-empty list of applications.
 		"""
 
-		return max(self.apps, key=lambda app: app.criticality).criticality
-
-	def find_app_by_name(self: Graph, name: str) -> App:
-		"""Find an application that matches a name.
-
-		Parameters
-		----------
-		self : Task
-			The instance of `Task`.
-		name : str
-			An application name.
-
-		Returns
-		-------
-		App
-			A matching application.
-
-		Raises
-		------
-		RuntimeError
-			If no matching application can be found.
-		"""
-
-		for app in self.apps:
-			if app.name == name:
-				return app
-
-		raise RuntimeError(f"Failed to find app with {name=}.")
-
-	def check_deadlines(self: Graph) -> bool:
-		"""Checks if the graph has any deadline misses.
-
-		Parameters
-		----------
-		self : Graph
-			The instance of `Graph`.
-
-		Returns
-		-------
-		bool
-			Returns `True` if at least one deadline miss is present, or `False` otherwise.
-		"""
-
-		for app in self:
-			for task in app:
-				for job in task:
-					if job.has_deadline_miss():
-						return False
-
-		return True
-
-	def check_task_executions(self: Graph) -> bool:
-		"""Checks if the graph has any execution misses.
-
-		Parameters
-		----------
-		self : Graph
-			The instance of `Graph`.
-
-		Returns
-		-------
-		bool
-			Returns `True` if at least one execution miss is present, or `False` otherwise.
-		"""
-
-		for app in self:
-			for task in app:
-				if task.has_miss() or not task.check_execution_time(self.hyperperiod):
-					print(f"{task.id} : deadline or exec miss")
-					return False
-
-		return True
-
-	def check_task_ordering(self: Graph) -> bool:
-		"""Checks if the graph has any order misses.
-
-		Parameters
-		----------
-		self : Graph
-			The instance of `Graph`.
-
-		Returns
-		-------
-		bool
-			Returns `True` if at least one order miss is present, or `False` otherwise.
-		"""
-
-		for app in self:
-			if app.order:
-				if app.has_order_miss():
-					print(f"{app.name} : order miss")
-					return False
-
-		return True
+		return max(self, key=lambda app: app.criticality).criticality
 
 	def pformat(self: Graph, level: int = 0) -> str:
 		"""A complete description of a graph.
@@ -834,5 +703,25 @@ class Graph(NamedTuple):
 
 		i = "\n" + ("\t" * level)
 
-		return (f"{i}graph {{{i}\thyperperiod : {self.hyperperiod};"
-			+ "".join(app.pformat(level + 1) for app in self.apps) + i + "}")
+		return (f"{i}graph {{{i}\thyperperiod : {self.hyperperiod};" + "".join(app.pformat(level + 1) for app in self) + i + "}")
+
+	# SET
+
+	def __contains__(self: Graph, item: object) -> bool:
+		if isinstance(item, App):
+			return self.apps.__contains__(item)
+		else:
+			return NotImplemented
+
+	def __len__(self: Graph) -> int:
+		return self.apps.__len__()
+
+	# REVERSIBLE
+
+	def __reversed__(self: Graph) -> Iterator[App]:
+		return self.apps.__reversed__()
+
+	# ITERABLE
+
+	def __iter__(self: Graph) -> Iterator[App]:
+		return self.apps.__iter__()
