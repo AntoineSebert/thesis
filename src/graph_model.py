@@ -419,92 +419,8 @@ class Task(Set, Reversible):
 	period: int
 	deadline: int
 	criticality: Criticality
-	parent: Task
+	parent: Task = None
 	jobs: SortedSet[Job] = field(default_factory=SortedSet)
-
-	def __eq__(self: Task, other: object) -> bool:
-		if isinstance(other, Task):
-			return self.id == other.id and self.app == other.app
-		else:
-			return NotImplemented
-
-	def __lt__(self: Task, other: object) -> bool:
-		if isinstance(other, Task):
-			return self.criticality < other.criticality
-		else:
-			return NotImplemented
-
-	def __contains__(self: Task, item: object) -> bool:
-		if isinstance(item, Job):
-			return item.task is self and item in self.jobs
-		else:
-			return NotImplemented
-
-	def __iter__(self: Task) -> Iterator[Job]:
-		return iter(self.jobs)
-
-	def __reversed__(self: Task) -> Iterator[Job]:
-		return reversed(self.jobs)
-
-	def __len__(self: Task) -> int:
-		return len(self.jobs)
-
-	def __hash__(self: Task) -> int:
-		return hash(str(self.id) + self.app.name)
-
-	def __new__(cls: Type[Task], id: int, app: App, wcet: int, period: int, deadline: int, criticality: Criticality) -> Task:
-		self = super().__new__(cls)  # Must explicitly create the new object
-		# Aside from explicit construction and return, rest of __new__ is same as __init__
-		self.id = id
-		self.app = app
-		self.wcet = wcet
-		self.period = period
-		self.deadline = deadline
-		self.criticality = criticality
-		self.parent = None
-		self.jobs = SortedSet()
-
-		return self  # __new__ returns the new object
-
-	def __getnewargs__(self: Task) -> tuple[int, App, int, int, int, Criticality]:
-		# Return the arguments that *must* be passed to __new__
-		return (self.id, self.app, self.wcet, self.period, self.deadline, self.criticality)
-
-	def has_miss(self: Task) -> bool:
-		"""Checks if a job of a task is out of its execution window.
-
-		Parameters
-		----------
-		self : Task
-			The instance of `Task`.
-
-		Returns
-		-------
-		bool
-			Returns `True` if at least one job misses its execution window, or `False` otherwise.
-		"""
-
-		for job in self:
-			if job.has_miss():
-				return True
-
-		return False
-
-	def check_execution_time(self: Task, hyperperiod: int) -> bool:
-		"""Computes the total execution time of the task.
-
-		Parameters
-		----------
-		self : Task
-			The instance of `Task`.
-
-		Returns
-		-------
-		bool
-			The total execution time.
-		"""
-
-		return sum(job.duration() for job in self.jobs) == int(hyperperiod / self.period) * self.wcet
 
 	@cached_property
 	def workload(self: Task) -> float:
@@ -565,38 +481,51 @@ class Task(Set, Reversible):
 			f"period : {self.period};{ii}"
 			f"deadline : {self.deadline};{ii}"
 			f"criticality : {int(self.criticality)};{ii}"
-			f"jobs {{" + "".join(job.pformat(level + 2) for job in self.jobs) + ii + "}"
+			f"jobs {{" + "".join(job.pformat(level + 2) for job in self) + ii + "}"
 			+ (f"{ii}parent : {self.parent.id};{i}}}" if self.parent is not None else i + "}"))
 
-	def find_job_by_sched_window(self: Task, sched_window: slice) -> Job:
-		"""Find a job that matches a scheduling window.
+	# HASHABLE
 
-		Parameters
-		----------
-		self : Task
-			The instance of `Task`.
-		sched_window : slice
-			A slice representing a scheduling window.
+	def __hash__(self: Task) -> int:
+		return hash(str(self.id) + self.app.name)
 
-		Returns
-		-------
-		Job
-			The matching job.
+	# TOTAL ORDERING
 
-		Raises
-		------
-		RuntimeError
-			If no matching Job can be found.
-		"""
+	def __eq__(self: Task, other: object) -> bool:
+		if isinstance(other, Task):
+			return self.id == other.id and self.app == other.app
+		else:
+			return NotImplemented
 
-		for job in self:
-			if job.sched_window == sched_window:
-				return job
+	def __lt__(self: Task, other: object) -> bool:
+		if isinstance(other, Task):
+			return self.criticality < other.criticality
+		else:
+			return NotImplemented
 
-		raise RuntimeError(f"Failed to find job with {sched_window=}.")
+	# SET
+
+	def __contains__(self: Task, item: object) -> bool:
+		if isinstance(item, Job):
+			return self.jobs.__contains__(item)
+		else:
+			return NotImplemented
+
+	def __len__(self: Task) -> int:
+		return self.jobs.__len__()
+
+	# REVERSIBLE
+
+	def __reversed__(self: Task) -> Iterator[Job]:
+		return self.jobs.__reversed__()
+
+	# ITERABLE
+
+	def __iter__(self: Task) -> Iterator[Job]:
+		return self.jobs.__iter__()
 
 
-@dataclass(eq=True)
+@dataclass
 @total_ordering
 class App(Sequence, Reversible):
 	"""An application.
