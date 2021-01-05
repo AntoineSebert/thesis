@@ -31,7 +31,7 @@ def _print_jobs(graph: Graph) -> None:
 		An app graph.
 	"""
 
-	for app in graph.apps:
+	for app in graph:
 		for task in app:
 			for job in task:
 				print(job.pformat())
