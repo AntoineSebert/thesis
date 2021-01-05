@@ -7,7 +7,7 @@ from queue import PriorityQueue
 
 from graph_model import App
 
-from model import Architecture, CoreJobMap, CoreTaskMap, SchedCheck
+from model import Architecture, CoreJobMap, CoreTaskMap, Processor, SchedCheck
 
 from sortedcontainers import SortedSet  # type: ignore
 
@@ -27,7 +27,7 @@ def _print_initial_mapping(core_jobs: CoreJobMap) -> None:
 			print(job.pformat(1))
 
 
-def _map_tasks_to_cores(core_tasks: CoreTaskMap, app: App) -> None:
+def _map_tasks_to_cores(core_tasks: CoreTaskMap, app: App, cpu: Processor) -> None:
 	"""Maps all tasks of an application to the cores of a processor.
 
 	Parameters
@@ -36,19 +36,15 @@ def _map_tasks_to_cores(core_tasks: CoreTaskMap, app: App) -> None:
 		A mapping of cores to tasks.
 	app : App
 		An application to map.
+	cpu : Processor
+		The processor onto which is scheduled the application.
 	"""
 
-	# ue cpu and cpu.get_min_core()
-	core_pqueue: PriorityQueue = PriorityQueue(maxsize=len(core_tasks.keys()))
-
-	for core in core_tasks.keys():
-		core_pqueue.put(core)
-
 	for task in app:
-		core = core_pqueue.get()
+		core = cpu.get_min_core()
+
 		core_tasks[core].add(task)
 		core.workload += task.workload
-		core_pqueue.put(core)
 
 
 # ENTRY POINT #########################################################################################################
@@ -83,7 +79,7 @@ def mapping(arch: Architecture, apps: SortedSet[App], sched_check: SchedCheck) -
 		cpu = cpu_pqueue.get()
 
 		if not cpu.apps or sched_check(app, cpu):
-			_map_tasks_to_cores(core_tasks, app)  # pass cpu
+			_map_tasks_to_cores(core_tasks, app, cpu)
 			cpu.apps.add(app)
 		else:
 			raise RuntimeError(f"Initial mapping failed with app '{app.name}' on CPU '{cpu.id}'.")
