@@ -3,10 +3,10 @@
 
 # IMPORTS #############################################################################################################
 
-from functools import reduce
 from math import fsum
+from itertools import groupby
 
-from graph_model import Job
+from graph_model import Job, Slice
 
 from model import CoreJobMap, Ordering, Problem, Solution
 
@@ -36,7 +36,7 @@ def global_schedulability_test(problem: Problem) -> bool:
 	"""
 
 	security_margin = 0.9
-	total_workload = fsum(task.workload for app in problem.graph.apps for task in app)
+	total_workload = fsum(task.workload for app in problem.graph for task in app)
 
 	if total_workload <= (sufficient_condition := sum(len(cpu) for cpu in problem.arch) * security_margin):
 		return True
@@ -44,111 +44,12 @@ def global_schedulability_test(problem: Problem) -> bool:
 		raise RuntimeError(f"Total workload is {total_workload}, should not be higher than {sufficient_condition}.")
 
 
-def _overlap_before(slice1: slice, slice2: slice) -> bool:
-	"""Checks if a slice is partially overlaps before another.
-
-	typical case:
-		slice1 |--------|
-		slice2        |--------|
-
-	edge case 1:
-		slice1 |---------|
-		slice2  |--------|
-
-	edge case 2:
-		slice1 |------|
-		slice2 |---------|
-
-	Parameters
-	----------
-	slice1, slice2 : slice
-		A pair of slices.
-
-	Returns
-	-------
-	bool
-		Returns `True` if the first slice partially overlaps before the second.
-	"""
-
-	return (slice1.start < slice2.start and slice2.start < slice1.stop <= slice2.stop)\
-		or (slice1.start == slice2.start and slice1.stop < slice2.stop)
-
-
-def _overlap_after(slice1: slice, slice2: slice) -> bool:
-	"""Checks if a slice is partially overlaps after another.
-
-	typical case:
-	slice1      |--------|
-	slice2 |--------|
-
-	edge case 1:
-	slice1 |--------|
-	slice2 |------|
-
-	edge case 2:
-	slice1    |------|
-	slice2 |---------|
-
-	Parameters
-	----------
-	slice1, slice2 : slice
-		A pair of slices.
-
-	Returns
-	-------
-	bool
-		Returns `True` if the first slice partially overlaps after the second.
-	"""
-
-	return (slice2.start <= slice1.start < slice2.stop and slice2.stop < slice1.stop)\
-		or (slice2.start < slice1.start and slice1.stop == slice2.stop)
-
-
-def _inside(slice1: slice, slice2: slice) -> bool:
-	"""Checks if a slice is within another.
-
-	typical case:
-	slice1    |------|
-	slice2 |------------|
-
-	Parameters
-	----------
-	slice1, slice2 : slice
-		A pair of slices.
-
-	Returns
-	-------
-	bool
-		Returns `True` if the first slice is within the second.
-	"""
-
-	return slice2.start < slice1.start and slice1.stop < slice2.stop
-
-
-def _intersect(slice1: slice, slice2: slice) -> bool:
-	"""Checks if two slices intersect whatsoever.
-
-	Parameters
-	----------
-	slice1, slice2 : slice
-		A pair of slices.
-
-	Returns
-	-------
-	bool
-		Returns `True` if the slices intersect.
-	"""
-
-	return slice1 == slice2 or _overlap_before(slice1, slice2) or _overlap_after(slice1, slice2)\
-		or _inside(slice1, slice2) or _inside(slice2, slice1)
-
-
-def _check_no_intersect(slices: list[slice]) -> None:
+def _check_no_intersect(slices: list[Slice]) -> None:
 	"""Ensures that all slices of a list are mutually exclusive.
 
 	Parameters
 	----------
-	slices : list[slice]
+	slices : list[Slice]
 		A list of slices.
 
 	Raises
@@ -157,43 +58,47 @@ def _check_no_intersect(slices: list[slice]) -> None:
 		If the workload carried by the problem is greater than the sufficient condition.
 	"""
 
+	#print("\n" + ("\t" * 4) + "_check_no_intersect")
+
 	if len(slices) < 2:
 		return
 
 	for i in range(len(slices) - 1):
 		for ii in range(i + 1, len(slices)):
-			if _intersect(slices[i], slices[ii]):
-				raise RuntimeError(f"Error : slices '{slices[i]}' and '{slices[ii]}' intersect.")
+			if slices[i].intersect(slices[ii]):
+				raise RuntimeError(f"slices '{slices[i]}' and '{slices[ii]}' are not disjoint.")
 
 
-def _get_intersecting_slices(target_job: Job, jobs: SortedSet[Job]) -> list[slice]:
+def _get_intersecting_slices(target_job: Job, jobs: SortedSet[Job]) -> list[Slice]:
 	"""Creates a list of slices from a set of jobs intersecting with the scheduling window of a job.
 
 	Parameters
 	----------
-	slices : list[slice]
+	slices : list[Slice]
 		A list of slices.
 
 	Returns
 	-------
-	list[slice]
+	list[Slice]
 		A sorted list of slices.
 	"""
 
-	# print("\t\t\t_get_intersect_slices")
-	slices: list[slice] = []
+	#print("\n" + ("\t" * 3) + "_get_intersect_slices")
+
+	slices: list[Slice] = []
 
 	"""
-	print("\t" * 4 + f"c_jobs ({len(c_jobs)}) :")
-	for _job in c_jobs:
-		print("\t" * 5 + _job.task.short() + " : " + str(_job.exec_window))
-		for _slice in _job:
+	print("\t" * 4 + f"jobs ({len(jobs)}) :")
+	for job in jobs:
+		print("\t" * 5 + job.task.short() + " : " + str(job.exec_window))
+		for _slice in job:
 			print("\t" * 6 + str(_slice))
 	"""
+	intersect = lambda s1, s2: s1.start < s2.stop and s2.start < s1.stop
 
-	for job in filter(lambda job: _intersect(target_job.sched_window, job.sched_window), jobs):
+	for job in filter(lambda job: intersect(job.exec_window, target_job.exec_window), jobs):
 		# print("\t" * 4 + str(c_job.sched_window))
-		for _slice in filter(lambda slice: _intersect(target_job.sched_window, slice), job):
+		for _slice in filter(lambda s: s.intersect(target_job.exec_window), job):
 			slices.append(_slice)  # check for partitions !
 
 	"""
@@ -207,7 +112,54 @@ def _get_intersecting_slices(target_job: Job, jobs: SortedSet[Job]) -> list[slic
 	return sorted(slices, key=lambda s: s.start)
 
 
-def _get_slices(job: Job, jobs: SortedSet[Job]) -> list[slice]:
+def _consume_leading_space(job: Job, start: int, first_start: int, job_slices: list[Slice], wcet: int) -> tuple[int, list[Slice]]:
+	#print("\n" + ("\t" * 3) + "_consume_leading_space")
+
+	if start < first_start and 0 < (space := first_start - start):
+		if wcet <= space:
+			job_slices.append(Slice(job, start, start + wcet))
+			#print(str(job_slices[-1]))
+
+			return (0, job_slices)
+		else:
+			job_slices.append(Slice(job, start, start + space))
+			#print(str(job_slices[-1]))
+
+			return (wcet - space, job_slices)
+	else:
+		return (wcet, job_slices)
+
+
+def _consume_space(job: Job, slices: list[Slice], job_slices: list[Slice], remaining: int) -> tuple[int, list[Slice]]:
+	#print("\n" + ("\t" * 3) + "_consume_space")
+
+	for i in range(len(slices) - 1):
+		if slices[i].stop < slices[i + 1].start and 0 < (space := slices[i + 1].start - slices[i].stop):
+			if remaining <= space:
+				job_slices.append(Slice(job, slices[i].stop, slices[i].stop + remaining))
+				#print(str(job_slices[-1]))
+
+				return (0, job_slices)
+			else:
+				job_slices.append(Slice(job, slices[i].stop, slices[i].stop + space))
+				#print(str(job_slices[-1]))
+				remaining -= space
+
+	return (remaining, job_slices)
+
+
+def _consume_trailing_space(job: Job, stop: int, last_stop: int, job_slices: list[Slice], remaining: int) -> list[Slice]:
+	#print("\n" + ("\t" * 3) + "_consume_trailing_space")
+
+	if last_stop < stop and 0 < (space := stop - last_stop):
+		if remaining <= space:
+			job_slices.append(Slice(job, last_stop, last_stop + remaining))
+			#print(str(job_slices[-1]))
+
+	return job_slices
+
+
+def _get_slices(job: Job, jobs: SortedSet[Job]) -> list[Slice]:
 	"""Gets the slices those total time is equal to the WCET of a job and that do not intersect with a set of jobs.
 
 	Parameters
@@ -219,7 +171,7 @@ def _get_slices(job: Job, jobs: SortedSet[Job]) -> list[slice]:
 
 	Returns
 	-------
-	list[slice]
+	list[Slice]
 		A list of execution slices for a job.
 
 	Raises
@@ -228,136 +180,83 @@ def _get_slices(job: Job, jobs: SortedSet[Job]) -> list[slice]:
 		If there is not enough free space within to schedule the job within its schedulign window.
 	"""
 
-	# print("\t\t_get_slices")
+	#print("\n" + ("\t" * 2) + "_get_slices")
+
 	slices = _get_intersecting_slices(job, jobs)
+	start = job.exec_window.start
+	wcet = job.task.wcet
 
 	if not slices:
-		return [slice(job.exec_window.start, job.exec_window.start + job.task.wcet)]
+		return [Slice(job, start, start + wcet)]
 
-	job_slices = []
-	remaining = job.task.wcet
+	remaining, job_slices = _consume_leading_space(job, start, slices[0].start, [], wcet)
 
-	# eventual leading space
-	if job.exec_window.start < slices[0].start:
-		if remaining <= (space := slices[0].start - job.exec_window.start):
-			return [slice(job.exec_window.start, job.exec_window.start + remaining)]
-		else:
-			job_slices.append(slice(job.exec_window.start, job.exec_window.start + space))
-			remaining -= space
+	if remaining == 0:
+		return job_slices
 
-	for i in range(len(slices) - 1):
-		if 0 < (space := slices[i + 1].start - slices[i].stop):
-			if remaining <= space:
-				job_slices.append(slice(slices[i].stop, slices[i].stop + remaining))
+	remaining, job_slices = _consume_space(job, slices, job_slices, remaining)
 
-				return job_slices
-			else:
-				job_slices.append(slice(slices[i].stop, slices[i].stop + space))
-				remaining -= space
-
-	# eventual following space
-	if slices[-1].stop < job.exec_window.stop:
-		if remaining <= (space := job.exec_window.stop - slices[-1].stop):
-			job_slices.append(slice(slices[-1].stop, slices[-1].stop + space))
-
-			return job_slices
-		else:
-			raise RuntimeError(f"Not enough running time to schedule {job.short()}.")
-
-	return job_slices
+	if remaining == 0:
+		return job_slices
+	else:
+		return _consume_trailing_space(job, job.exec_window.stop, slices[-1].stop, job_slices, remaining)
 
 
-def _generate_exec_slices(job: Job, slices: list[slice]) -> list[slice]:
+def _generate_exec_slices(job: Job, slices: list[Slice]) -> list[Slice]:
 	"""Creates potential execution slices for a job.
 
 	Parameters
 	----------
 	job : Job
 		A job to create execution slices for.
-	slices : list[slice]
+	slices : list[Slice]
 		A list of potential execution slices.
 
 	Returns
 	-------
-	j_slices : list[slice]
+	potential_slices : list[Slice]
 		The execution slices that are suitable for the executino of the job.
 	"""
 
-	# print("\t\t_generate_exec_slices")
-	j_slices = []
+	#print("\n" + ("\t" * 2) + "_generate_exec_slices")
+
+	potential_slices = []
 	target_runtime = job.task.wcet
 
 	# take slices until wcet has been all done (mind last slice might not be complete !)
 	for _slice in slices:
-		if target_runtime <= _slice.stop - _slice.start:
-			j_slices.append(slice(_slice.start, _slice.start + target_runtime))
+		if target_runtime <= len(_slice):
+			potential_slices.append(Slice(job, _slice.start, _slice.start + target_runtime))
 
 			break
 		else:
-			j_slices.append(_slice)
-
-		target_runtime -= _slice.stop - _slice.start
-
-	return j_slices
-
-
-def _create_execution_slices(jobs: SortedSet[Job]) -> bool:
-	"""Creates execution slices for a set of jobs.
-
-	Parameters
-	----------
-	jobs : SortedSet[Job]
-		A set of jobs.
-
-	Returns
-	-------
-	bool
-		Returns `True` if all jobs have been scheduled, or `False` otherwise.
+			potential_slices.append(_slice)
+			target_runtime -= len(_slice)
+	"""
+	print("\t" * 3 + f"potential_slices ({len(potential_slices)}) :")
+	for _slice in potential_slices:
+		print("\t" * 4 + str(_slice))
 	"""
 
-	"""
-	print("\t_schedule_task " + "=" * 140)
-
-	print("\t" * 2 + f"c_jobs ({len(jobs)}) :")
-	for _job in jobs:
-		print("\t" * 3 + _job.task.short() + " : " + str(_job.exec_window))
-		for _slice in _job:
-			print("\t" * 4 + str(_slice))
-	"""
-
-	for job in jobs:
-		slices = _get_slices(job, jobs)
-
-		# checks if enough runtime
-		if (runtime := reduce(lambda s1, s2: (s1.stop - s1.start) + (s2.stop - s2.start), slices, 0)) == job.task.wcet:
-			job.execution.extend(slices)
-		elif job.task.wcet < runtime:
-			job.execution.extend(_generate_exec_slices(job, slices))
-		else:
-			return False
-
-	return True
-
+	return potential_slices
 
 # ENTRY POINT #########################################################################################################
 
 
-def schedule(core_jobs: CoreJobMap, problem: Problem, ordering: Ordering) -> Solution:
+def schedule(core_jobs: CoreJobMap, ordering: Ordering) -> CoreJobMap:
 	"""Schedules a problem into a solution.
 
 	Parameters
 	----------
 	core_jobs : CoreJobMap
 		A map of cores to a set of jobs.
-	problem : Problem
-		A problem to schedule.
 	ordering : Ordering
 		An ordering algorithm, like EDF or RM.
 
 	Returns
 	-------
-	Solution
-		A scheduled solution.
+	core_jobs : CoreJobMap
+		...
 
 	Raises
 	------
@@ -365,17 +264,26 @@ def schedule(core_jobs: CoreJobMap, problem: Problem, ordering: Ordering) -> Sol
 		If the execution slices for a job from set of jobs associated with a core could be all created.
 	"""
 
-	# print("/" * 200)
+	#print("/" * 200)
 	for core, jobs in core_jobs.items():
 		jobs = ordering(jobs)
+		_key = lambda j: j.task.criticality
 
-		if not _create_execution_slices(jobs):
-			raise RuntimeError(f"Initial scheduling failed with core : '{core.short()}'.")
-			"""
-			if task.criticality < problem.graph.max_criticality():
-				raise NotImplementedError  # backtrack
-			else:
-				raise RuntimeError(f"Initial scheduling failed with task : '{task.app.name}/{task.id}'.")
-			"""
+		for crit, _jobs in groupby(sorted(jobs, key=_key, reverse=True), key=_key):
+			for job in _jobs:
+				slices = _get_slices(job, jobs)
+				"""
+				print("\t" * 2 + f"exec slices ({len(slices)}) :")
+				for _slice in slices:
+					print("\t" * 4 + str(_slice))
+				"""
 
-	return Solution(problem, core_jobs)
+				job.execution.update(_generate_exec_slices(job, slices))
+				"""
+				if task.criticality < problem.graph.max_criticality():
+					raise NotImplementedError  # backtrack
+				else:
+					raise RuntimeError(f"Initial scheduling failed with task : '{task.app.name}/{task.id}'.")
+				"""
+
+	return core_jobs
