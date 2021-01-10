@@ -3,8 +3,9 @@
 
 # IMPORTS #############################################################################################################
 
-from math import fsum
 from itertools import groupby
+from math import fsum
+
 
 from arch_model import CoreJobMap
 
@@ -267,11 +268,11 @@ def schedule(core_jobs: CoreJobMap, ordering: Ordering) -> CoreJobMap:
 	"""
 
 	#print("/" * 200)
-	for core, jobs in core_jobs.items():
+	for jobs in core_jobs.values():
 		jobs = ordering(jobs)
 		_key = lambda j: j.task.criticality
 
-		for crit, _jobs in groupby(sorted(jobs, key=_key, reverse=True), key=_key):
+		for _crit, _jobs in groupby(sorted(jobs, key=_key, reverse=True), key=_key):
 			for job in _jobs:
 				slices = _get_slices(job, jobs)
 				"""
@@ -281,11 +282,5 @@ def schedule(core_jobs: CoreJobMap, ordering: Ordering) -> CoreJobMap:
 				"""
 
 				job.execution.update(_generate_exec_slices(job, slices))
-				"""
-				if task.criticality < problem.graph.max_criticality():
-					raise NotImplementedError  # backtrack
-				else:
-					raise RuntimeError(f"Initial scheduling failed with task : '{task.app.name}/{task.id}'.")
-				"""
 
 	return core_jobs

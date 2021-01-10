@@ -4,7 +4,7 @@
 # IMPORTS #############################################################################################################
 
 import logging
-from copy import deepcopy, copy
+from copy import deepcopy
 
 from graph_model import Graph, Job
 

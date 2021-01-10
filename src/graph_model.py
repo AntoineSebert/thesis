@@ -8,12 +8,11 @@ from __future__ import annotations
 
 
 from collections.abc import Iterator, Reversible, Sequence, Set, Sized
-from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import IntEnum, unique
 from functools import cached_property, total_ordering
 from math import fsum
-from typing import Union, overload
+from typing import overload
 
 from sortedcontainers import SortedSet  # type: ignore
 
@@ -375,7 +374,7 @@ class Job(Set, Reversible):
 
 	# DEEPCOPY
 
-	def __deepcopy__(self, memo):
+	def __deepcopy__(self: Job, memo: dict[int, object]) -> Job:
 		cls = self.__class__
 		result = cls.__new__(cls)
 		memo[id(self)] = result
@@ -424,7 +423,7 @@ class Task(Set, Reversible):
 
 	@cached_property
 	def workload(self: Task) -> float:
-		"""Computes and caches the workload of the instance.
+		"""Computes and caches the workload of the task.
 
 		Parameters
 		----------
