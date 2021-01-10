@@ -60,7 +60,7 @@ class Slice(Sized):
 	def __init__(self: Slice, job: Job, start: int, stop: int) -> None:
 		if stop <= start:
 			raise RuntimeError(f"Cannot instantiate Slice with {start=} and {stop=}.")
-		elif start < job.sched_window.start or stop > job.sched_window.stop:
+		elif start < job.exec_window.start or stop > job.exec_window.stop:
 			raise RuntimeError(f"Cannot instantiate Slice with {start=} and {stop=}: does not match {job.exec_window}.")
 
 		self.job = job
