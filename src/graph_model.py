@@ -256,7 +256,7 @@ class Job(Set, Reversible):
 			Returns `True` if at least one execution slice is out of the scheduling window, or `False` otherwise.
 		"""
 
-		return self.__len__() == 0 or self.has_deadline_miss() or self.has_offset_miss()
+		return self.__len__() == 0 or self.has_deadline_miss() or self.has_offset_miss() or self.has_wcet_miss()
 
 	def has_deadline_miss(self: Job) -> bool:
 		"""Checks if the deadline of the job is missed.

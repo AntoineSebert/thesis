@@ -40,7 +40,7 @@ def _is_feasible(graph: Graph, core_jobs: CoreJobMap) -> bool:
 
 	for jobs in core_jobs.values():
 		for job in jobs:
-			if job.has_execution_miss() or job.has_wcet_miss():
+			if job.has_execution_miss():
 				return False
 
 	for app in filter(lambda a: a.order, graph):
