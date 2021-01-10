@@ -6,6 +6,7 @@
 from itertools import groupby
 from math import fsum
 
+from algorithm import Ordering
 
 from arch_model import CoreJobMap
 

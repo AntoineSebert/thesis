@@ -5,9 +5,11 @@
 
 from queue import PriorityQueue
 
-from graph_model import App
+from algorithm import SchedCheck
 
 from arch_model import Architecture, Core, CoreJobMap, CoreTaskMap
+
+from graph_model import App, Graph, Task
 
 from sortedcontainers import SortedSet  # type: ignore
 

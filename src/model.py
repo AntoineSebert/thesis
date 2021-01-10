@@ -5,13 +5,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Reversible, Set
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import cached_property, total_ordering
-from math import fsum
-from operator import gt, lt
 from pathlib import Path
-from typing import Callable, Collection, Iterable, NamedTuple, Union
+from typing import NamedTuple, Union
 
 from arch_model import Architecture, CoreJobMap
 
@@ -192,6 +189,7 @@ class Problem(NamedTuple):
 
 
 @dataclass
+@total_ordering
 class Solution:
 	"""A solution from a final schedule.
 
@@ -208,6 +206,7 @@ class Solution:
 	problem: Problem
 	core_jobs: CoreJobMap
 	objective: Objective
+	#algorithm: Algorithm
 
 	@cached_property
 	def score(self: Solution) -> Score:
@@ -227,6 +226,10 @@ class Solution:
 		"""
 
 		return self.objective(self)
+
+	@cached_property
+	def offset_sum(self: Solution) -> int:
+		return sum(job.offset for jobs in self.core_jobs.values() for job in jobs)
 
 	def pformat(self: Solution, level: int = 0) -> str:
 		"""A complete description of a solution.
@@ -264,33 +267,20 @@ class Solution:
 
 	# TOTAL ORDERING
 
-"""Scheduling check, returns the sufficient condition."""
-# Callable[[set[Task]], bool] = lambda tasks: workload(tasks) <= sufficient_condition(len(tasks))
-SchedCheck = Callable[[Collection[Task], Collection[Core]], bool]
-Ordering = Callable[[Iterable[Job]], Iterable[Job]]
-Scoring = Callable[[CoreJobMap], Union[int, float]]
+	def __eq__(self: Solution, other: object) -> bool:
+		if isinstance(other, Solution):
+			if self.score == other.score:
+				return self.offset_sum < other.offset_sum
+			else:
+				return self.score < other.score
+		else:
+			return NotImplemented
 
-"""
-class scheduler/ordinator
-	attr
-		sec margin
-		name
-	members
-		global sched check
-		local sched check
-		ordering
-"""
-
-"""Algorithms for scheduling, containing the sufficient condition, an ordering function."""
-algorithms: dict[str, tuple[SchedCheck, Ordering]] = {
-	"edf": (
-		lambda tasks, cores: fsum(task.workload for task in tasks) <= len(cores) * 0.9,
-		lambda jobs: sorted(jobs, key=lambda job: job.sched_window.stop),
-	),
-	"rm": (
-		lambda tasks, cores: fsum(task.workload for task in tasks) <= len(cores) * 0.9 * (len(tasks) * (2**(1 / len(tasks)) - 1)),
-		lambda jobs: sorted(jobs, key=lambda job: job.task.period),
-	),
-}
-
-
+	def __lt__(self: Solution, other: object) -> bool:
+		if isinstance(other, Solution):
+			if self.score == other.score:
+				return self.offset_sum < other.offset_sum
+			else:
+				return self.score < other.score
+		else:
+			return NotImplemented

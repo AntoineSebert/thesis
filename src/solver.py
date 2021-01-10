@@ -6,9 +6,11 @@
 import logging
 from copy import deepcopy
 
-from graph_model import Graph, Job
+from algorithm import Ordering, SchedCheck, algorithms
 
 from arch_model import CoreJobMap
+
+from graph_model import Graph
 
 from mapper import mapping
 
@@ -69,19 +71,7 @@ def _clear_job_executions(core_jobs: CoreJobMap) -> None:
 			job.execution.clear()
 
 
-def _modify_job(core_jobs: CoreJobMap, job: Job, initial_step: int) -> None:
-	for jobs in core_jobs.values():
-		for _job in jobs:
-			# TODO : check if app, task and sched_windows correspond instead
-			if _job.task is job.task and _job.sched_window == job.sched_window:
-				_job.exec_window = slice(_job.exec_window.start + initial_step, _job.exec_window.stop)
-				if (_job.exec_window.stop - _job.exec_window.start) < _job.task.wcet:
-					raise RuntimeError(f"{_job.exec_window=} // {_job.task.wcet}")
-
-	return core_jobs
-
-
-def get_neighbors(solution: Solution, ordering: Ordering, sched_check: SchedCheck) -> list[Solution]:
+def get_neighbors(solution: Solution, ordering: Ordering, sched_check: SchedCheck) -> SortedSet[Solution]:
 	"""Gets the feasible scheduled neighbors (candidates) of a Solution.
 
 	Parameters
@@ -95,28 +85,26 @@ def get_neighbors(solution: Solution, ordering: Ordering, sched_check: SchedChec
 
 	Returns
 	-------
-	candidates : list[Solution]
+	candidates : SortedSet[Solution]
 		A list of candidates, may be empty.
 	"""
 
 	#print("=" * 200)
-	candidates = []
+	candidates = SortedSet()
 	initial_step = solution.problem.config.params.initial_step
 
-	#print("candidates search...")
 	for core, jobs in solution.core_jobs.items():
 		for ii, job in enumerate(jobs):
 			if job.task.wcet + initial_step <= job.exec_window.stop - job.exec_window.start:
-				#print("model : " + job.short())
 				neighbor = deepcopy(solution.core_jobs)
-				#print(neighbor[core][ii].short())
 
-				core_jobs = schedule(_modify_job(neighbor, job, initial_step), ordering)
+				# TODO : alter mapping & check (need to put core_tasks in solution again)
+
+				neighbor[core][ii].exec_window = slice(job.exec_window.start + initial_step, job.exec_window.stop)
+				core_jobs = schedule(neighbor, ordering)
 
 				if _is_feasible(solution.problem.graph, core_jobs):
-					#print(f"\tadding cand {len(candidates)}.")
-					candidates.append(Solution(solution.problem, core_jobs))
-					#print(f"\tcand feasible ? { _is_feasible(solution.problem.graph, candidates[-1].core_jobs)}")
+					candidates.add(Solution(solution.problem, core_jobs, solution.objective))
 
 	return candidates
 
@@ -139,20 +127,22 @@ def solve(problem: Problem) -> Solution:
 		A solution for the problem.
 	"""
 
-	sched_check, ordering = algorithms[problem.config.params.algorithm]
-
 	if global_schedulability_test(problem):
-		core_jobs = mapping(problem.arch, problem.graph.apps, sched_check)
-		explored_solutions: list[Solution] = [Solution(problem, schedule(core_jobs, ordering))]
+		sched_check, ordering = algorithms[problem.config.params.algorithm]
+		explored_domain: list[SortedSet[Solution]] = [SortedSet()]
+		explored_domain[0].add(
+			Solution(
+				problem,
+				schedule(mapping(problem.arch, problem.graph.apps, sched_check), ordering),
+				objectives[problem.config.params.objective],
+			),
+		)
 
-		while (candidates := get_neighbors(explored_solutions[-1], ordering, sched_check)):
-			#print(len(explored_solutions))
-			best_candidate = max(candidates, key=lambda c: empty_space(c))
+		while (candidates := get_neighbors(explored_domain[-1][0], ordering, sched_check)):
+			#print("#" * 200)
 
-			# either < or <=, should be ideally <= to explore full search space
-			if empty_space(explored_solutions[-1]) <= (best_score := empty_space(best_candidate)):
-				explored_solutions.append(best_candidate)
-				# print(f"total offsets : {sum((job.offset for jobs in best_candidate.core_jobs.values() for job in jobs), start=0)} // score : {best_score}")
+			if explored_domain[-1][0].score <= candidates[0].score:
+				explored_domain.append(candidates)
 			else:
 				break
 
@@ -165,6 +155,15 @@ def solve(problem: Problem) -> Solution:
 				print(job.pformat())
 		"""
 
-		return explored_solutions[-1] # return first solution with the same score as last solution if more than one
+		# TODO : return first solution with the same score as last solution if more than one
+		"""
+		if 1 < len(explored_solutions):
+			last_score = explored_solutions[-1][0]
+			for i, sol in enumerate(resersed(explored_solutions[:-2])):
+				if sol[0] < last_score:
+					return resersed(explored_solutions[:-2])[i]
+		"""
+
+		return explored_domain[-1][0]
 	else:
 		return None
