@@ -4,6 +4,7 @@
 # IMPORTS #############################################################################################################
 
 from queue import PriorityQueue
+from random import choice, choices
 
 from algorithm import SchedCheck
 
@@ -23,33 +24,60 @@ def _print_initial_mapping(core_jobs: CoreJobMap) -> None:
 		A mapping of cores to jobs.
 	"""
 
+	print("_print_initial_mapping")
+
 	for core, jobs in core_jobs.items():
 		print(core.pformat())
 		for job in jobs:
 			print(job.pformat(1))
 
 
-def _map_tasks_to_cores(core_tasks: CoreTaskMap, app: App, cpu: Processor) -> None:
-	"""Maps all tasks of an application to the cores of a processor.
+def _get_core(core_tasks: CoreTaskMap, task: Task) -> Core:
+	for core, tasks in core_tasks.items():
+		if task in tasks:
+			return core
 
-	Parameters
-	----------
-	core_tasks : CoreTaskMap
-		A mapping of cores to tasks.
-	app : App
-		An application to map.
-	cpu : Processor
-		The processor onto which is scheduled the application.
-	"""
+	raise RuntimeError(f"Could not find {task.short()} in the mapping.")
 
-	for task in app:
-		core = cpu.get_min_core()
 
-		core_tasks[core].add(task)
-		core.workload += task.workload
+def _swap_tasks(core_tasks: CoreTaskMap, cores: list[Core], task1: Task, task2: Task) -> None:
+	core_tasks[cores[0]].remove(task1)
+	core_tasks[cores[1]].add(task1)
+	core_tasks[cores[0]].add(task2)
+	core_tasks[cores[1]].remove(task2)
 
 
 # ENTRY POINT #########################################################################################################
+
+
+def get_alteration_possibilities(graph: Graph, core_tasks: CoreTaskMap) -> dict[App, dict[Core, set[Task]]]:
+	possibilities: dict[App, dict[Core, set[Task]]] = {}
+
+	for app in filter(lambda app: len(app) >= 2, graph):
+		cores: dict[Core, set[Task]] = {}
+
+		for task in app:
+			core = _get_core(core_tasks, task)
+
+			if core not in cores:
+				cores[core] = set()
+
+			cores[core].add(task)
+
+		if len(cores) >= 2:
+			possibilities[app] = cores
+
+	return possibilities
+
+
+def alter_mapping(core_tasks: CoreTaskMap, possibilities: dict[App, dict[Core, set[Task]]]) -> None:
+	if 1 < len(core_tasks.values()) and possibilities:  # make that static
+		app: App = choice(list(possibilities.keys()))
+		cores: list[Core] = choices(list(possibilities[app].keys()), k=2)
+		task1: Task = choice(list(possibilities[app][cores[0]]))
+		task2: Task = choice(list(possibilities[app][cores[1]]))
+
+		_swap_tasks(core_tasks, cores, task1, task2)
 
 
 def mapping(arch: Architecture, apps: SortedSet[App], sched_check: SchedCheck) -> CoreJobMap:
@@ -62,8 +90,8 @@ def mapping(arch: Architecture, apps: SortedSet[App], sched_check: SchedCheck) -
 
 	Returns
 	-------
-	core_tasks : CoreTaskMap
-		A mapping of cores to tasks.
+	core_jobs : CoreJobMap
+		A mapping of cores to jobs.
 
 	Raises
 	------
@@ -71,7 +99,6 @@ def mapping(arch: Architecture, apps: SortedSet[App], sched_check: SchedCheck) -
 		If an application cannot be scheduled on the least busy processor.
 	"""
 
-	core_tasks = {core: SortedSet() for cpu in arch for core in cpu}
 	cpu_pqueue: PriorityQueue = PriorityQueue(maxsize=len(arch))
 
 	for cpu in arch:
@@ -81,15 +108,22 @@ def mapping(arch: Architecture, apps: SortedSet[App], sched_check: SchedCheck) -
 		cpu = cpu_pqueue.get()
 
 		if not cpu.apps or sched_check(app, cpu):
-			_map_tasks_to_cores(core_tasks, app, cpu)
 			cpu.apps.add(app)
+
+			for task in app:
+				cpu.min_core().tasks.add(task)
 		else:
 			raise RuntimeError(f"Initial mapping failed with app '{app.name}' on CPU '{cpu.id}'.")
 
 		cpu_pqueue.put(cpu)
 
-	core_jobs = {core: [job for task in core_tasks[core] for job in task] for core in core_tasks.keys()}
+	core_jobs = {}
 
-	# _print_initial_mapping(core_jobs)
+	for cpu in arch:
+		for core in cpu:
+			if core.tasks:
+				core_jobs[core] = SortedSet(job for task in core for job in task)
+
+	#_print_initial_mapping(core_jobs)
 
 	return core_jobs
