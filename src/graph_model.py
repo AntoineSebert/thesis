@@ -419,7 +419,7 @@ class Task(Set, Reversible):
 	period: int
 	deadline: int
 	criticality: Criticality
-	parent: Task = None
+	parent: Task
 	jobs: SortedSet[Job] = field(default_factory=SortedSet)
 
 	@cached_property

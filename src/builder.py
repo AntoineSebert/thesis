@@ -137,6 +137,7 @@ def _import_graph(filepath: Path) -> Graph:
 				int(node.find("Period").get("Value")),
 				int(node.get("Deadline")),
 				Criticality(int(node.get("CIL"))),
+				None,
 			) for runnable in app.iter("Runnable") if (node := nodes.get(runnable.get("Name"))) is not None
 		]
 
