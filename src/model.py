@@ -207,9 +207,10 @@ class Solution:
 
 	problem: Problem
 	core_jobs: CoreJobMap
+	objective: Objective
 
 	@cached_property
-	def score(self: Solution, scoring: Scoring) -> Union[int, float]:
+	def score(self: Solution) -> Score:
 		"""The score of the solution.
 
 		Parameters
@@ -221,11 +222,11 @@ class Solution:
 
 		Returns
 		-------
-		Union[int, float]
+		Score
 			The score of the solution.
 		"""
 
-		return objectives[self.problem.config.params.objective](self.core_jobs)
+		return self.objective(self)
 
 	def pformat(self: Solution, level: int = 0) -> str:
 		"""A complete description of a solution.
@@ -293,60 +294,3 @@ algorithms: dict[str, tuple[SchedCheck, Ordering]] = {
 }
 
 
-def empty_space(solution: Solution) -> int:
-	total_running = 0
-
-	for jobs in solution.core_jobs.values():
-		if jobs:
-			all_sorted_slices = sorted(_slice for job in jobs for _slice in job)
-
-			if len(all_sorted_slices) == 1:
-				total_running += all_sorted_slices[0].stop - all_sorted_slices[0].start
-			else:
-				running_time = 0
-
-				for _slice in all_sorted_slices:
-					running_time += _slice.stop - _slice.start
-
-				total_running += running_time
-
-	return (len(solution.core_jobs) * solution.problem.graph.hyperperiod) - total_running
-
-
-"""Objective functions that assign a score to a feasible solution."""
-ObjectiveFunction = Callable[[CoreJobMap], Union[int, float]]
-
-
-"""Objectives and descriptions."""
-objectives = {
-	"min_e2e": (
-		"minimal end-to-end application delay",
-		{
-			"cmltd": (
-				"cumulated; lower is better",
-				lambda s: s,
-				gt,
-			),
-			"nrml": (
-				"normal distribution; lower is better",
-				lambda s: s,
-				gt,
-			),
-		},
-	),
-	"max_empty": (
-		"maximal empty space",
-		{
-			"cmltd": (
-				"cumulated; higher is better",
-				lambda s: s,
-				lt,
-			),
-			"nrml": (
-				"normal distribution; lower is better",
-				lambda s: s,
-				lt,
-			),
-		},
-	),
-}

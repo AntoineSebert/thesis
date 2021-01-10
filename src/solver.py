@@ -14,6 +14,8 @@ from mapper import mapping
 
 from model import Problem, Solution
 
+from objective import objectives
+
 from scheduler import global_schedulability_test, schedule
 
 from sortedcontainers import SortedSet  # type: ignore

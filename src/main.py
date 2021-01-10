@@ -30,7 +30,9 @@ from format import OutputFormat
 
 from log import ColoredHandler
 
-from model import Configuration, FilepathPair, Parameters, Problem, Solution, objectives
+from model import Configuration, FilepathPair, Parameters, Problem, Solution
+
+from objective import objectives
 
 from solver import algorithms, solve
 
@@ -119,10 +121,9 @@ def _create_cli_parser() -> ArgumentParser:
 		'-o', '--objective',
 		nargs='?',
 		type=str,
-		choices=[f"{abbr}-{abbr2}" for abbr, val in objectives.items() for abbr2 in val[1].keys()],
+		choices=list(objectives.keys()),
 		help="Objective function to evaluate solutions, either one of: "
-		+ ', '.join(f"{abbr}-{abbr2} ({val[0]}, {val2[0]})"
-			for abbr, val in objectives.items() for abbr2, val2 in val[1].items()),
+		+ ', '.join(f"{short} ({obj.name})" for short, obj in objectives.items()),
 		metavar="OBJECTIVE",
 		dest="objective",
 	)
@@ -239,7 +240,7 @@ def _create_parameters(args: Namespace) -> Parameters:
 			or_in(
 				config,
 				"objective",
-				f"{next(iter(objectives.keys()))}-{next(iter(next(iter(objectives.values()))[1].keys()))}",
+				f"{next(iter(objectives.items()))[0]}-{next(iter(objectives.items()))[1]}",
 			),
 		),
 		_or(args.switch_time, or_in(config, "switch_time", 10)),
