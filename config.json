@@ -1,7 +1,7 @@
 {
 	"format": "svg",
 	"algorithm": "edf",
-	"objective": "min_e2e-cmltd",
+	"objective": "cumulated_free",
 	"verbose": false,
 	"switch_time": 10,
 	"initial_step": 10,
