@@ -101,7 +101,8 @@ def _create_jobs(apps: list[App], hyperperiod: int) -> SortedSet[App]:
 	for app in apps:
 		for task in app:
 			for i in range(int(hyperperiod / task.period)):
-				window = slice(i * task.period, ((i + 1) * task.period))
+				start = i * task.period
+				window = slice(start, start + task.deadline)
 				task.jobs.add(Job(task, window, window))
 
 	return apps
