@@ -12,9 +12,11 @@ from queue import PriorityQueue
 from typing import Any
 from xml.etree.ElementTree import Element, SubElement, dump, indent, register_namespace, tostring
 
+from arch_model import Core, CoreJobMap
+
 from graph_model import Criticality, Job
 
-from model import Core, CoreJobMap, Path, Solution
+from model import Path, Solution
 
 from timed import timed_callable
 

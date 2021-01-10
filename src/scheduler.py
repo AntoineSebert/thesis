@@ -6,9 +6,11 @@
 from math import fsum
 from itertools import groupby
 
+from arch_model import CoreJobMap
+
 from graph_model import Job, Slice
 
-from model import CoreJobMap, Ordering, Problem, Solution
+from model import Problem
 
 from sortedcontainers import SortedSet  # type: ignore
 

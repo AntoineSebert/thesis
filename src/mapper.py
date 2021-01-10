@@ -7,7 +7,7 @@ from queue import PriorityQueue
 
 from graph_model import App
 
-from model import Architecture, CoreJobMap, CoreTaskMap, Processor, SchedCheck
+from arch_model import Architecture, Core, CoreJobMap, CoreTaskMap
 
 from sortedcontainers import SortedSet  # type: ignore
 

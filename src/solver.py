@@ -8,9 +8,11 @@ from copy import deepcopy, copy
 
 from graph_model import Graph, Job
 
+from arch_model import CoreJobMap
+
 from mapper import mapping
 
-from model import CoreJobMap, Ordering, Problem, SchedCheck, Solution, algorithms, empty_space
+from model import Problem, Solution
 
 from scheduler import global_schedulability_test, schedule
 

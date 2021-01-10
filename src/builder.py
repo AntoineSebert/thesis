@@ -8,11 +8,13 @@ import logging
 from math import lcm
 from pathlib import Path
 
+from arch_model import Architecture, Core, Processor
+
 from defusedxml import ElementTree  # type: ignore
 
 from graph_model import App, Criticality, Graph, Job, Task
 
-from model import Architecture, Configuration, Core, Problem, Processor
+from model import Configuration, Problem
 
 from sortedcontainers import SortedSet  # type: ignore
 
