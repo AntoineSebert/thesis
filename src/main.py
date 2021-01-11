@@ -10,7 +10,8 @@ Static analysis
 	type checking :	https://github.com/python/mypy
 
 Sample
-	python src/main.py -a edf -f svg -o max_empty-cmltd -s 10 --case data/1
+	python src/main.py -a edf -f svg -o cumulated_free -s 10 --case data/1
+	py-spy record --output profile.svg -- python src/main.py -a edf -f svg -o cumulated_free -s 10 --case data/1
 """
 
 # IMPORTS #############################################################################################################

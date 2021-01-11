@@ -668,6 +668,7 @@ class Graph(Set, Reversible):
 	apps: SortedSet[App]
 	hyperperiod: int
 
+	@cached_property
 	def max_criticality(self: Graph) -> Criticality:
 		"""Computes and caches the maximal criticality within the apps.
 

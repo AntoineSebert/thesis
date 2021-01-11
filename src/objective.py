@@ -69,8 +69,6 @@ def min_app_delay(solution: Solution) -> Score:
 # CLASSES AND TYPE ALIASES ############################################################################################
 
 Score = Union[int, float]
-
-
 Scoring = Callable[[Solution], Score]
 
 
