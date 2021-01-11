@@ -47,12 +47,14 @@ def _is_feasible(graph: Graph, core_jobs: CoreJobMap) -> bool:
 			if job.has_execution_miss():
 				return False
 
+	"""
 	for app in filter(lambda a: a.order, graph):
 		for task in app:
 			jobs = [job for jobs in core_jobs.values() for job in jobs if job.task is task]
 			for i, job in enumerate(jobs[1:]):
 				if not job < jobs[i]:
 					return False
+	"""
 
 	return True
 
