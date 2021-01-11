@@ -182,14 +182,14 @@ class Job(Set, Reversible):
 		The window scheduling time, representing (activation_time, activation_time + deadline).
 	exec_window : slice
 		The window execution time, taking into account the offset and local deadline.
-	execution : SortedSet[Slice]
+	execution : list[Slice]
 		Set of execution slices.
 	"""
 
 	task: Task
 	sched_window: slice
 	exec_window: slice
-	execution: SortedSet[Slice] = field(default_factory=SortedSet)
+	execution: list[Slice] = field(default_factory=list)
 
 	def duration(self: Job) -> int:
 		"""Computes and caches the duration of the slice.
@@ -382,7 +382,7 @@ class Job(Set, Reversible):
 		result.task = self.task
 		result.sched_window = self.sched_window
 		result.exec_window = self.exec_window
-		result.execution = SortedSet()
+		result.execution = []
 
 		return result
 

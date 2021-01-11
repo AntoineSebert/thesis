@@ -58,19 +58,6 @@ def _is_feasible(graph: Graph, core_jobs: CoreJobMap) -> bool:
 
 
 def get_neighbors(solution: Solution) -> list[Solution]:
-	"""Clears all the executions of the jobs to avoid execution slices accumulation.
-
-	Parameters
-	----------
-	graph : Graph
-		A `Graph`.
-	"""
-
-	for jobs in core_jobs.values():
-		for job in jobs:
-			job.execution.clear()
-
-
 	"""Gets the feasible scheduled neighbors (candidates) of a Solution.
 
 	Parameters
@@ -84,12 +71,12 @@ def get_neighbors(solution: Solution) -> list[Solution]:
 
 	Returns
 	-------
-	candidates : SortedSet[Solution]
+	candidates : list[Solution]
 		A list of candidates, may be empty.
 	"""
 
-	#print("=" * 200)
-	candidates = SortedSet()
+	# print("=" * 200)
+	candidates = []
 	initial_step = solution.problem.config.params.initial_step
 
 	for core, jobs in solution.core_jobs.items():
@@ -105,7 +92,7 @@ def get_neighbors(solution: Solution) -> list[Solution]:
 				if _is_feasible(solution.problem.graph, core_jobs):
 					candidates.append(Solution(solution.problem, core_jobs, solution.objective, solution.algorithm))
 
-	return candidates
+	return sorted(candidates)
 
 
 # ENTRY POINT #########################################################################################################

@@ -34,7 +34,7 @@ class Core(Set, Reversible):
 
 	id: int
 	processor: Processor
-	tasks: SortedSet[Task] = field(compare=False, default_factory=SortedSet)
+	tasks: list[Task] = field(compare=False, default_factory=list)
 
 	def workload(self: Core) -> float:
 		"""The workload of the core.
