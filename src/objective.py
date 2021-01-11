@@ -77,7 +77,7 @@ class Objective:
 	"""Objective functions that assign a score to a feasible solution."""
 
 	name: str
-	comp: Callable[[Solution, Solution, bool]]
+	comp: Callable[[Solution, Solution], bool]
 	function: Scoring
 
 	def __call__(self: Objective, solution: Solution) -> Score:
