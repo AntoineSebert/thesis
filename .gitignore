@@ -5,6 +5,10 @@ D1/
 IEEEAccess.pdf
 profile.svg
 test.svg
+tests/*.svg
+tests/*.json
+tests/*.xml
+tests/*.txt
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
