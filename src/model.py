@@ -10,6 +10,8 @@ from functools import cached_property, total_ordering
 from pathlib import Path
 from typing import NamedTuple, Union
 
+from algorithm import SchedAlgorithm
+
 from arch_model import Architecture, CoreJobMap
 
 from graph_model import Graph
@@ -206,7 +208,7 @@ class Solution:
 	problem: Problem
 	core_jobs: CoreJobMap
 	objective: Objective
-	#algorithm: Algorithm
+	algorithm: SchedAlgorithm
 
 	@cached_property
 	def score(self: Solution) -> Score:

@@ -6,7 +6,7 @@
 import logging
 from copy import deepcopy
 
-from algorithm import Ordering, SchedCheck, algorithms
+from algorithm import algorithms
 
 from arch_model import CoreJobMap
 
@@ -18,7 +18,7 @@ from model import Problem, Solution
 
 from objective import objectives
 
-from scheduler import global_schedulability_test, schedule
+from scheduler import schedule
 
 from sortedcontainers import SortedSet  # type: ignore
 
@@ -57,7 +57,7 @@ def _is_feasible(graph: Graph, core_jobs: CoreJobMap) -> bool:
 	return True
 
 
-def _clear_job_executions(core_jobs: CoreJobMap) -> None:
+def get_neighbors(solution: Solution) -> list[Solution]:
 	"""Clears all the executions of the jobs to avoid execution slices accumulation.
 
 	Parameters
@@ -71,7 +71,6 @@ def _clear_job_executions(core_jobs: CoreJobMap) -> None:
 			job.execution.clear()
 
 
-def get_neighbors(solution: Solution, ordering: Ordering, sched_check: SchedCheck) -> SortedSet[Solution]:
 	"""Gets the feasible scheduled neighbors (candidates) of a Solution.
 
 	Parameters
@@ -101,10 +100,10 @@ def get_neighbors(solution: Solution, ordering: Ordering, sched_check: SchedChec
 				# TODO : alter mapping & check (need to put core_tasks in solution again)
 
 				neighbor[core][ii].exec_window = slice(job.exec_window.start + initial_step, job.exec_window.stop)
-				core_jobs = schedule(neighbor, ordering)
+				core_jobs = schedule(neighbor, solution.algorithm)
 
 				if _is_feasible(solution.problem.graph, core_jobs):
-					candidates.add(Solution(solution.problem, core_jobs, solution.objective))
+					candidates.append(Solution(solution.problem, core_jobs, solution.objective, solution.algorithm))
 
 	return candidates
 
@@ -127,43 +126,41 @@ def solve(problem: Problem) -> Solution:
 		A solution for the problem.
 	"""
 
-	if global_schedulability_test(problem):
-		sched_check, ordering = algorithms[problem.config.params.algorithm]
-		explored_domain: list[SortedSet[Solution]] = [SortedSet()]
-		explored_domain[0].add(
-			Solution(
-				problem,
-				schedule(mapping(problem.arch, problem.graph.apps, sched_check), ordering),
-				objectives[problem.config.params.objective],
-			),
-		)
+	_algorithm = algorithms[problem.config.params.algorithm]
 
-		while (candidates := get_neighbors(explored_domain[-1][0], ordering, sched_check)):
-			#print("#" * 200)
+	if (result := _algorithm.global_scheduling_check(problem.arch, problem.graph)) is not None:
+		RuntimeError(f"Total workload is {result[0]}, should not be higher than {result[1]}.")
 
-			if explored_domain[-1][0].score <= candidates[0].score:
-				explored_domain.append(candidates)
-			else:
-				break
+	explored_domain: list[SortedSet[Solution]] = [SortedSet()]
+	explored_domain[0].add(
+		Solution(
+			problem,
+			schedule(mapping(problem.arch, problem.graph.apps, _algorithm), _algorithm),
+			objectives[problem.config.params.objective],
+			_algorithm,
+		),
+	)
 
-		logging.info("Solution found for:\t" + str(problem.config.filepaths))
+	# TODO :  if all apps have same crit and obj is cumulated free space, we can stop right here i guess
 
-		#print(f"feasible ? {_is_feasible(problem.graph, explored_solutions[-1].core_jobs)}")
-		"""
-		for jobs in explored_solutions[-1].core_jobs.values():
-			for job in jobs:
-				print(job.pformat())
-		"""
+	while (candidates := get_neighbors(explored_domain[-1][0])):
+		# print("#" * 200)
 
-		# TODO : return first solution with the same score as last solution if more than one
-		"""
-		if 1 < len(explored_solutions):
-			last_score = explored_solutions[-1][0]
-			for i, sol in enumerate(resersed(explored_solutions[:-2])):
-				if sol[0] < last_score:
-					return resersed(explored_solutions[:-2])[i]
-		"""
+		if explored_domain[-1][0].score <= candidates[0].score:
+			explored_domain.append(candidates)
+		else:
+			# solution with least offset_sum and same score as best solution
+			if 1 < len(explored_domain):
+				for i, solution_set in enumerate(reversed(explored_domain[1:])):
+					if solution_set[0].score < explored_domain[-1][0].score:
+						return explored_domain[i - 1]
 
-		return explored_domain[-1][0]
-	else:
-		return None
+	logging.info("Solution found for:\t" + str(problem.config.filepaths))
+
+	"""
+	for jobs in explored_solutions[-1].core_jobs.values():
+		for job in jobs:
+			print(job.pformat())
+	"""
+
+	return explored_domain[0][0]

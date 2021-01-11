@@ -4,48 +4,17 @@
 # IMPORTS #############################################################################################################
 
 from itertools import groupby
-from math import fsum
 
-from algorithm import Ordering
+from algorithm import SchedAlgorithm
 
 from arch_model import CoreJobMap
 
 from graph_model import Job, Slice
 
-from model import Problem
-
 from sortedcontainers import SortedSet  # type: ignore
 
 
 # FUNCTIONS ###########################################################################################################
-
-
-def global_schedulability_test(problem: Problem) -> bool:
-	"""Determines the schedulability of a problem with the EDF algorithm with a security margin of 0.9.
-
-	Parameters
-	----------
-	problem : Problem
-		A `Problem`.
-
-	Returns
-	-------
-	bool
-		Returns `True` if the workload carried by the problem is less or equal to the sufficient condition, or `False` otherwise.
-
-	Raises
-	------
-	RuntimeError
-		If the workload carried by the problem is greater than the sufficient condition.
-	"""
-
-	security_margin = 0.9
-	total_workload = fsum(task.workload for app in problem.graph for task in app)
-
-	if total_workload <= (sufficient_condition := sum(len(cpu) for cpu in problem.arch) * security_margin):
-		return True
-	else:
-		raise RuntimeError(f"Total workload is {total_workload}, should not be higher than {sufficient_condition}.")
 
 
 def _check_no_intersect(slices: list[Slice]) -> None:
@@ -218,36 +187,36 @@ def _generate_exec_slices(job: Job, slices: list[Slice]) -> list[Slice]:
 
 	Returns
 	-------
-	potential_slices : list[Slice]
+	job_slices : list[Slice]
 		The execution slices that are suitable for the executino of the job.
 	"""
 
-	#print("\n" + ("\t" * 2) + "_generate_exec_slices")
+	# print("\n" + ("\t" * 2) + "_generate_exec_slices")
 
-	potential_slices = []
+	job_slices = []
 	target_runtime = job.task.wcet
 
 	# take slices until wcet has been all done (mind last slice might not be complete !)
 	for _slice in slices:
 		if target_runtime <= len(_slice):
-			potential_slices.append(Slice(job, _slice.start, _slice.start + target_runtime))
+			job_slices.append(Slice(job, _slice.start, _slice.start + target_runtime))
 
 			break
 		else:
-			potential_slices.append(_slice)
+			job_slices.append(_slice)
 			target_runtime -= len(_slice)
 	"""
-	print("\t" * 3 + f"potential_slices ({len(potential_slices)}) :")
-	for _slice in potential_slices:
+	print("\t" * 3 + f"job_slices ({len(job_slices)}) :")
+	for _slice in job_slices:
 		print("\t" * 4 + str(_slice))
 	"""
 
-	return potential_slices
+	return sorted(job_slices)
 
 # ENTRY POINT #########################################################################################################
 
 
-def schedule(core_jobs: CoreJobMap, ordering: Ordering) -> CoreJobMap:
+def schedule(core_jobs: CoreJobMap, algorithm: SchedAlgorithm) -> CoreJobMap:
 	"""Schedules a problem into a solution.
 
 	Parameters
@@ -268,9 +237,9 @@ def schedule(core_jobs: CoreJobMap, ordering: Ordering) -> CoreJobMap:
 		If the execution slices for a job from set of jobs associated with a core could be all created.
 	"""
 
-	#print("/" * 200)
+	# print("/" * 200)
 	for jobs in core_jobs.values():
-		jobs = ordering(jobs)
+		jobs = algorithm(jobs)
 		_key = lambda j: j.task.criticality
 
 		for _crit, _jobs in groupby(sorted(jobs, key=_key, reverse=True), key=_key):
@@ -282,6 +251,6 @@ def schedule(core_jobs: CoreJobMap, ordering: Ordering) -> CoreJobMap:
 					print("\t" * 4 + str(_slice))
 				"""
 
-				job.execution.update(_generate_exec_slices(job, slices))
+				job.execution = _generate_exec_slices(job, slices)
 
 	return core_jobs

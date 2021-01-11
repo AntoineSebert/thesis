@@ -6,7 +6,7 @@
 from queue import PriorityQueue
 from random import choice, choices
 
-from algorithm import SchedCheck
+from algorithm import SchedAlgorithm
 
 from arch_model import Architecture, Core, CoreJobMap, CoreTaskMap
 
@@ -80,7 +80,7 @@ def alter_mapping(core_tasks: CoreTaskMap, possibilities: dict[App, dict[Core, s
 		_swap_tasks(core_tasks, cores, task1, task2)
 
 
-def mapping(arch: Architecture, apps: SortedSet[App], sched_check: SchedCheck) -> CoreJobMap:
+def mapping(arch: Architecture, apps: SortedSet[App], algorithm: SchedAlgorithm) -> CoreJobMap:
 	"""Creates and returns a solution from the relaxed problem.
 
 	Parameters
@@ -107,11 +107,9 @@ def mapping(arch: Architecture, apps: SortedSet[App], sched_check: SchedCheck) -
 	for app in apps:
 		cpu = cpu_pqueue.get()
 
-		if not cpu.apps or sched_check(app, cpu):
+		if not cpu.apps or algorithm.local_scheduling_check(cpu, app, algorithm.security_margin):
 			cpu.apps.add(app)
-
-			for task in app:
-				cpu.min_core().tasks.add(task)
+			cpu.min_core().tasks.extend(app.tasks)
 		else:
 			raise RuntimeError(f"Initial mapping failed with app '{app.name}' on CPU '{cpu.id}'.")
 
