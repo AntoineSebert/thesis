@@ -12,24 +12,13 @@ from typing import Callable, Union
 from model import Solution
 
 
-# OBJECTIVE FUNCTIONS #################################################################################################
+# FUNCTIONS ###########################################################################################################
 
 def cumulated_empty_space(solution: Solution) -> Score:
 	total_running = 0
 
 	for jobs in solution.core_jobs.values():
-		if jobs:
-			all_sorted_slices = sorted(_slice for job in jobs for _slice in job)
-
-			if len(all_sorted_slices) == 1:
-				total_running += len(all_sorted_slices[0])
-			else:
-				running_time = 0
-
-				for _slice in all_sorted_slices:
-					running_time += len(_slice)
-
-				total_running += running_time
+		total_running += sum(len(_slice) for job in jobs for _slice in job)
 
 	return (len(solution.core_jobs) * solution.problem.graph.hyperperiod) - total_running
 
