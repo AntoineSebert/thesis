@@ -2,15 +2,15 @@
 <graphml>
 	<Graph id="DoricColumns" edgedefault="directed">
 		<Node Id="0" Name="C0" WCET="200" Deadline="900" CpuId="0" CIL="4">
-			<Period Value="1000"/>
+			<Period Value="800"/>
 		</Node>
-		<Node Id="1" Name="C1" WCET="200" Deadline="1000" CpuId="0" CIL="4">
+		<Node Id="1" Name="C1" WCET="200" Deadline="500" CpuId="0" CIL="4">
 			<Period Value="1000"/>
 		</Node>
 		<Node Id="2" Name="C2" WCET="300" Deadline="2000" CpuId="0" CIL="4">
 			<Period Value="2000"/>
 		</Node>
-		<Node Id="3" Name="C3" WCET="400" Deadline="4000" CpuId="0" CIL="4">
+		<Node Id="3" Name="C3" WCET="400" Deadline="2000" CpuId="0" CIL="4">
 			<Period Value="4000"/>
 		</Node>
 

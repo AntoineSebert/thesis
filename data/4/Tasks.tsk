@@ -1,149 +1,149 @@
 <?xml version="1.0" encoding="utf-8"?>
 <graphml>
 	<Graph id="ControlTask" edgedefault="directed">
-		<Node Id="1" Name="T1" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="3">
-			<Period Value="100000"/>
+		<Node Id="1" Name="T1" WCET="200" Deadline="10000" CpuId="0" CIL="3">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="2" Name="T2" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="3">
-			<Period Value="100000"/>
+		<Node Id="2" Name="T2" WCET="200" Deadline="10000" CpuId="0" CIL="3">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="3" Name="T3" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="3">
-			<Period Value="100000"/>
+		<Node Id="3" Name="T3" WCET="200" Deadline="10000" CpuId="0" CIL="3">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="4" Name="T4" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="3">
-			<Period Value="100000"/>
+		<Node Id="4" Name="T4" WCET="200" Deadline="10000" CpuId="0" CIL="3">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="5" Name="T5" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="3">
-			<Period Value="100000"/>
+		<Node Id="5" Name="T5" WCET="200" Deadline="10000" CpuId="0" CIL="3">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="6" Name="T6" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="3">
-			<Period Value="100000"/>
+		<Node Id="6" Name="T6" WCET="200" Deadline="10000" CpuId="0" CIL="3">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="7" Name="T7" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="3">
-			<Period Value="100000"/>
+		<Node Id="7" Name="T7" WCET="200" Deadline="10000" CpuId="0" CIL="3">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="8" Name="T8" BCET="1000" WCET="1000" Deadline="50000" CpuId="0" CIL="3">
-			<Period Value="50000"/>
+		<Node Id="8" Name="T8" WCET="100" Deadline="5000" CpuId="0" CIL="3">
+			<Period Value="5000"/>
 		</Node>
-		<Node Id="9" Name="T9" BCET="2000" WCET="2000" Deadline="50000" CpuId="0" CIL="3">
-			<Period Value="50000"/>
+		<Node Id="9" Name="T9" WCET="200" Deadline="5000" CpuId="0" CIL="3">
+			<Period Value="5000"/>
 		</Node>
-		<Node Id="10" Name="T10" BCET="1000" WCET="1000" Deadline="50000" CpuId="0" CIL="3">
-			<Period Value="50000"/>
+		<Node Id="10" Name="T10" WCET="100" Deadline="5000" CpuId="0" CIL="3">
+			<Period Value="5000"/>
 		</Node>
-		<Node Id="11" Name="T11" BCET="2000" WCET="2000" Deadline="50000" CpuId="0" CIL="3">
-			<Period Value="50000"/>
+		<Node Id="11" Name="T11" WCET="200" Deadline="5000" CpuId="0" CIL="3">
+			<Period Value="5000"/>
 		</Node>
-		<Node Id="12" Name="T12" BCET="1000" WCET="1000" Deadline="50000" CpuId="0" CIL="2">
-			<Period Value="50000"/>
+		<Node Id="12" Name="T12" WCET="100" Deadline="5000" CpuId="0" CIL="2">
+			<Period Value="5000"/>
 		</Node>
-		<Node Id="13" Name="T13" BCET="2000" WCET="2000" Deadline="50000" CpuId="0" CIL="2">
-			<Period Value="50000"/>
+		<Node Id="13" Name="T13" WCET="200" Deadline="5000" CpuId="0" CIL="2">
+			<Period Value="5000"/>
 		</Node>
-		<Node Id="14" Name="T14" BCET="1000" WCET="1000" Deadline="50000" CpuId="0" CIL="2">
-			<Period Value="50000"/>
+		<Node Id="14" Name="T14" WCET="100" Deadline="5000" CpuId="0" CIL="2">
+			<Period Value="5000"/>
 		</Node>
-		<Node Id="15" Name="T15" BCET="2000" WCET="2000" Deadline="50000" CpuId="0" CIL="2">
-			<Period Value="50000"/>
+		<Node Id="15" Name="T15" WCET="200" Deadline="5000" CpuId="0" CIL="2">
+			<Period Value="5000"/>
 		</Node>
-		<Node Id="16" Name="T16" BCET="1000" WCET="1000" Deadline="50000" CpuId="0" CIL="2">
-			<Period Value="50000"/>
+		<Node Id="16" Name="T16" WCET="100" Deadline="5000" CpuId="0" CIL="2">
+			<Period Value="5000"/>
 		</Node>
-		<Node Id="17" Name="T17" BCET="2000" WCET="2000" Deadline="50000" CpuId="0" CIL="2">
-			<Period Value="50000"/>
+		<Node Id="17" Name="T17" WCET="200" Deadline="5000" CpuId="0" CIL="2">
+			<Period Value="5000"/>
 		</Node>
-		<Node Id="18" Name="T18" BCET="4000" WCET="4000" Deadline="100000" CpuId="0" CIL="1">
-			<Period Value="100000"/>
+		<Node Id="18" Name="T18" WCET="400" Deadline="10000" CpuId="0" CIL="1">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="19" Name="T19" BCET="4000" WCET="4000" Deadline="100000" CpuId="0" CIL="1">
-			<Period Value="100000"/>
+		<Node Id="19" Name="T19" WCET="400" Deadline="10000" CpuId="0" CIL="1">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="20" Name="T20" BCET="1000" WCET="1000" Deadline="50000" CpuId="0" CIL="2">
-			<Period Value="50000"/>
+		<Node Id="20" Name="T20" WCET="100" Deadline="5000" CpuId="0" CIL="2">
+			<Period Value="5000"/>
 		</Node>
-		<Node Id="21" Name="T21" BCET="1000" WCET="1000" Deadline="50000" CpuId="0" CIL="2">
-			<Period Value="50000"/>
+		<Node Id="21" Name="T21" WCET="100" Deadline="5000" CpuId="0" CIL="2">
+			<Period Value="5000"/>
 		</Node>
-		<Node Id="22" Name="T22" BCET="1000" WCET="1000" Deadline="50000" CpuId="0" CIL="2">
-			<Period Value="50000"/>
+		<Node Id="22" Name="T22" WCET="100" Deadline="5000" CpuId="0" CIL="2">
+			<Period Value="5000"/>
 		</Node>
-		<Node Id="23" Name="T23" BCET="2000" WCET="2000" Deadline="50000" CpuId="0" CIL="2">
-			<Period Value="50000"/>
+		<Node Id="23" Name="T23" WCET="200" Deadline="5000" CpuId="0" CIL="2">
+			<Period Value="5000"/>
 		</Node>
-		<Node Id="24" Name="T24" BCET="2000" WCET="2000" Deadline="50000" CpuId="0" CIL="2">
-			<Period Value="50000"/>
+		<Node Id="24" Name="T24" WCET="200" Deadline="5000" CpuId="0" CIL="2">
+			<Period Value="5000"/>
 		</Node>
-		<Node Id="25" Name="T25" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="2">
-			<Period Value="100000"/>
+		<Node Id="25" Name="T25" WCET="200" Deadline="10000" CpuId="0" CIL="2">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="26" Name="T26" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="2">
-			<Period Value="100000"/>
+		<Node Id="26" Name="T26" WCET="200" Deadline="10000" CpuId="0" CIL="2">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="27" Name="T27" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="2">
-			<Period Value="100000"/>
+		<Node Id="27" Name="T27" WCET="200" Deadline="10000" CpuId="0" CIL="2">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="28" Name="T28" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="2">
-			<Period Value="100000"/>
+		<Node Id="28" Name="T28" WCET="200" Deadline="10000" CpuId="0" CIL="2">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="29" Name="T29" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="2">
-			<Period Value="100000"/>
+		<Node Id="29" Name="T29" WCET="200" Deadline="10000" CpuId="0" CIL="2">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="30" Name="T30" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="2">
-			<Period Value="100000"/>
+		<Node Id="30" Name="T30" WCET="200" Deadline="10000" CpuId="0" CIL="2">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="31" Name="T31" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="2">
-			<Period Value="100000"/>
+		<Node Id="31" Name="T31" WCET="200" Deadline="10000" CpuId="0" CIL="2">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="32" Name="T32" BCET="1000" WCET="1000" Deadline="100000" CpuId="0" CIL="1">
-			<Period Value="100000"/>
+		<Node Id="32" Name="T32" WCET="100" Deadline="10000" CpuId="0" CIL="1">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="33" Name="T33" BCET="1000" WCET="1000" Deadline="100000" CpuId="0" CIL="1">
-			<Period Value="100000"/>
+		<Node Id="33" Name="T33" WCET="100" Deadline="10000" CpuId="0" CIL="1">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="34" Name="T34" BCET="4000" WCET="4000" Deadline="100000" CpuId="0" CIL="1">
-			<Period Value="100000"/>
+		<Node Id="34" Name="T34" WCET="400" Deadline="10000" CpuId="0" CIL="1">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="35" Name="T35" BCET="1000" WCET="1000" Deadline="100000" CpuId="0" CIL="1">
-			<Period Value="100000"/>
+		<Node Id="35" Name="T35" WCET="100" Deadline="10000" CpuId="0" CIL="1">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="36" Name="T36" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="1">
-			<Period Value="100000"/>
+		<Node Id="36" Name="T36" WCET="200" Deadline="10000" CpuId="0" CIL="1">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="37" Name="T37" BCET="1000" WCET="1000" Deadline="100000" CpuId="0" CIL="1">
-			<Period Value="100000"/>
+		<Node Id="37" Name="T37" WCET="100" Deadline="10000" CpuId="0" CIL="1">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="38" Name="T38" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="1">
-			<Period Value="100000"/>
+		<Node Id="38" Name="T38" WCET="200" Deadline="10000" CpuId="0" CIL="1">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="39" Name="T39" BCET="3000" WCET="3000" Deadline="100000" CpuId="0" CIL="1">
-			<Period Value="100000"/>
+		<Node Id="39" Name="T39" WCET="300" Deadline="10000" CpuId="0" CIL="1">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="40" Name="T40" BCET="1000" WCET="1000" Deadline="100000" CpuId="0" CIL="1">
-			<Period Value="100000"/>
+		<Node Id="40" Name="T40" WCET="100" Deadline="10000" CpuId="0" CIL="1">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="41" Name="T41" BCET="2000" WCET="2000" Deadline="100000" CpuId="0" CIL="1">
-			<Period Value="100000"/>
+		<Node Id="41" Name="T41" WCET="200" Deadline="10000" CpuId="0" CIL="1">
+			<Period Value="10000"/>
 		</Node>
-		<Node Id="42" Name="T42" BCET="1000" WCET="1000" Deadline="28000" EarliestActivation="0" CpuId="1" CIL="4">
-			<Period Value="25000"/>
+		<Node Id="42" Name="T42" WCET="100" Deadline="2800" EarliestActivation="0" CpuId="1" CIL="4">
+			<Period Value="2500"/>
 		</Node>
-		<Node Id="43" Name="T43" BCET="2000" WCET="2000" Deadline="28000" EarliestActivation="1000" CpuId="1" CIL="4">
-			<Period Value="25000"/>
+		<Node Id="43" Name="T43" WCET="200" Deadline="2800" EarliestActivation="1000" CpuId="1" CIL="4">
+			<Period Value="2500"/>
 		</Node>
-		<Node Id="44" Name="T44" BCET="3000" WCET="3000" Deadline="28000" EarliestActivation="3000" CpuId="1" CIL="4">
-			<Period Value="25000"/>
+		<Node Id="44" Name="T44" WCET="300" Deadline="2800" EarliestActivation="3000" CpuId="1" CIL="4">
+			<Period Value="2500"/>
 		</Node>
-		<Node Id="45" Name="T45" BCET="2000" WCET="2000" Deadline="28000" EarliestActivation="6000" CpuId="1" CIL="4">
-			<Period Value="25000"/>
+		<Node Id="45" Name="T45" WCET="200" Deadline="2800" EarliestActivation="6000" CpuId="1" CIL="4">
+			<Period Value="2500"/>
 		</Node>
-		<Node Id="46" Name="T46" BCET="1000" WCET="1000" Deadline="28000" EarliestActivation="8000" CpuId="1" CIL="4">
-			<Period Value="25000"/>
+		<Node Id="46" Name="T46" WCET="100" Deadline="2800" EarliestActivation="8000" CpuId="1" CIL="4">
+			<Period Value="2500"/>
 		</Node>
-		<Node Id="47" Name="T47" BCET="1000" WCET="1000" Deadline="28000" EarliestActivation="9000" CpuId="1" CIL="4">
-			<Period Value="25000"/>
+		<Node Id="47" Name="T47" WCET="100" Deadline="2800" EarliestActivation="9000" CpuId="1" CIL="4">
+			<Period Value="2500"/>
 		</Node>
-		<Node Id="48" Name="T48" BCET="2000" WCET="2000" Deadline="28000" EarliestActivation="10000" CpuId="1" CIL="4">
-			<Period Value="25000"/>
+		<Node Id="48" Name="T48" WCET="200" Deadline="2800" EarliestActivation="10000" CpuId="1" CIL="4">
+			<Period Value="2500"/>
 		</Node>
 
 		<Application Name="Engine" Inorder="false" CA ="false">
