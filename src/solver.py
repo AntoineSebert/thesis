@@ -5,14 +5,15 @@
 
 import logging
 from copy import deepcopy
+from typing import Optional
 
 from algorithm import algorithms
 
-from arch_model import CoreJobMap
+from arch_model import Core, CoreJobMap
 
-from graph_model import Graph
+from graph_model import Graph, Job
 
-from mapper import mapping
+from mapper import alter_mapping, get_alteration_possibilities, mapping
 
 from model import Problem, Solution
 
@@ -59,6 +60,33 @@ def _is_feasible(graph: Graph, core_jobs: CoreJobMap) -> bool:
 	return True
 
 
+def _try_generate_neighbor(source: Solution, core: Core, job: Job, job_index: int) -> Optional[Solution]:
+	# print("\t\t_try_generate_neighbor")
+	neighbor = {deepcopy(core): deepcopy(jobs) for core, jobs in source.core_jobs.items()}
+	initial_step = source.problem.config.params.initial_step
+	switch_time = source.problem.config.params.switch_time
+
+	if source.possibilities:
+		if alter_mapping(source.possibilities, source.algorithm, neighbor):
+			"""
+			for cpu in source.problem.arch:
+				for core in cpu:
+					if core.tasks:
+						neighbor[core] = SortedSet(job for task in core for job in task)
+			"""
+		else:
+			raise RuntimeError("Re-mapping unschedulable")
+
+	neighbor[core][job_index].exec_window = slice(job.exec_window.start + initial_step, job.exec_window.stop)
+
+	core_jobs = schedule(neighbor, source.algorithm, switch_time)
+
+	if _is_feasible(source.problem.graph, core_jobs):
+		return Solution(source.problem, core_jobs, source.objective, source.algorithm, source.possibilities)
+	else:
+		return None
+
+
 def get_neighbors(solution: Solution) -> list[Solution]:
 	"""Gets the feasible scheduled neighbors (candidates) of a Solution.
 
@@ -77,24 +105,52 @@ def get_neighbors(solution: Solution) -> list[Solution]:
 		A list of candidates, may be empty.
 	"""
 
-	# print("=" * 200)
+	# print("\tget_neighbors")
+
 	candidates = []
 	initial_step = solution.problem.config.params.initial_step
 
 	for core, jobs in solution.core_jobs.items():
 		for ii, job in enumerate(jobs):
+			#print(len(jobs), ii)
+
 			if job.task.wcet + initial_step <= job.exec_window.stop - job.exec_window.start:
-				neighbor = deepcopy(solution.core_jobs)
-
-				# TODO : alter mapping & check (need to put core_tasks in solution again)
-
-				neighbor[core][ii].exec_window = slice(job.exec_window.start + initial_step, job.exec_window.stop)
-				core_jobs = schedule(neighbor, solution.algorithm)
-
-				if _is_feasible(solution.problem.graph, core_jobs):
-					candidates.append(Solution(solution.problem, core_jobs, solution.objective, solution.algorithm))
+				if (result := _try_generate_neighbor(solution, core, job, ii)) is not None:
+					candidates.append(result)
 
 	return sorted(candidates)
+
+
+def _optimise(initial_solution: Solution) -> Solution:
+	from format import _svg_format
+	# print("_optimize")
+
+	explored_domain: list[SortedSet[Solution]] = [SortedSet()]
+	explored_domain[0].add(initial_solution)
+
+	while (candidates := get_neighbors(explored_domain[-1][0])):
+		#print(explored_domain[-1][0].score, candidates[0].score)
+		if explored_domain[-1][0].score <= candidates[0].score:
+			#print(explored_domain[-1][0].offset_sum)
+			file = open("output/o-" + str(len(explored_domain)) + ".svg", "w")
+			file.write(_svg_format(candidates[0]))
+			file.close()
+			explored_domain.append(candidates)
+		else:
+			"""
+			for jobs in explored_domain[-1][0].core_jobs.values():
+				for job in jobs:
+					print(job.pformat())
+			"""
+
+			break
+
+	"""
+	for generation in explored_domain:
+		print(_svg_format(generation[0]))
+	"""
+
+	return explored_domain
 
 
 # ENTRY POINT #########################################################################################################
@@ -120,36 +176,24 @@ def solve(problem: Problem) -> Solution:
 	if (result := _algorithm.global_scheduling_check(problem.arch, problem.graph)) is not None:
 		RuntimeError(f"Total workload is {result[0]}, should not be higher than {result[1]}.")
 
-	explored_domain: list[SortedSet[Solution]] = [SortedSet()]
-	explored_domain[0].add(
-		Solution(
-			problem,
-			schedule(mapping(problem.arch, problem.graph.apps, _algorithm), _algorithm),
-			objectives[problem.config.params.objective],
-			_algorithm,
-		),
+	# must be done before call to get_alteration_possibilities()
+	core_jobs = mapping(problem.arch, problem.graph.apps, _algorithm)
+	possibilities = get_alteration_possibilities(problem.arch, problem.graph)
+
+	initial_solution = Solution(
+		problem,
+		schedule(core_jobs, _algorithm, problem.config.params.switch_time),
+		objectives[problem.config.params.objective],
+		_algorithm,
+		possibilities,
 	)
 
-	# TODO :  if all apps have same crit and obj is cumulated free space, we can stop right here i guess
-
-	while (candidates := get_neighbors(explored_domain[-1][0])):
-		# print("#" * 200)
-
-		if explored_domain[-1][0].score <= candidates[0].score:
-			explored_domain.append(candidates)
-		else:
-			# solution with least offset_sum and same score as best solution
-			if 1 < len(explored_domain):
-				for i, solution_set in enumerate(reversed(explored_domain[1:])):
-					if solution_set[0].score < explored_domain[-1][0].score:
-						return explored_domain[i - 1]
+	solution = initial_solution
+	solutions = _optimise(initial_solution)
 
 	logging.info("Solution found for:\t" + str(problem.config.filepaths))
 
-	"""
-	for jobs in explored_solutions[-1].core_jobs.values():
-		for job in jobs:
-			print(job.pformat())
-	"""
+	final = [initial_solution]
+	final.extend([generation[0] for generation in solutions])
 
-	return explored_domain[0][0]
+	return final #[solutions[-1][0]]

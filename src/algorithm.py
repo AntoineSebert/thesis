@@ -73,6 +73,9 @@ class SchedAlgorithm:
 			[core for cpu in arch for core in cpu], [task for app in graph for task in app], self.security_margin,
 		)
 
+	def core_scheduling_check(self: SchedAlgorithm, core: Core) -> bool:
+		return True if self.local_scheduling_check([core], core.tasks, self.security_margin) is None else False
+
 
 # DATA ################################################################################################################
 
@@ -81,7 +84,7 @@ algorithms: dict[str, SchedAlgorithm] = {
 		"Earliest Deadline First",
 		0.9,
 		_local_check_edf,
-		lambda jobs: sorted(jobs, key=lambda job: job.sched_window.stop),
+		lambda jobs: sorted(jobs, key=lambda job: job.exec_window.stop),
 	),
 	"rm": SchedAlgorithm(
 		"Rate monotonic",

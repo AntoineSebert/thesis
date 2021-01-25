@@ -7,7 +7,7 @@ from itertools import groupby
 
 from algorithm import SchedAlgorithm
 
-from arch_model import CoreJobMap
+from arch_model import CoreJobMap, Core
 
 from graph_model import Job, Slice
 
@@ -82,49 +82,73 @@ def _get_intersecting_slices(target_job: Job, jobs: SortedSet[Job]) -> list[Slic
 
 	_check_no_intersect(slices)  # check that the intersecting slices do not intersect between themselves
 
-	return sorted(slices, key=lambda s: s.start)
+	return sorted(slices, key=lambda s: s.stop)
 
 
-def _consume_leading_space(job: Job, start: int, first_start: int, job_slices: list[Slice], wcet: int) -> tuple[int, list[Slice]]:
+def _consume_leading_space(job: Job, first_slice: Job, wcet: int, switch_time: int) -> tuple[int, list[Slice]]:
 	#print("\n" + ("\t" * 3) + "_consume_leading_space")
 
-	if start < first_start and 0 < (space := first_start - start):
-		if wcet <= space:
-			job_slices.append(Slice(job, start, start + wcet))
-			#print(str(job_slices[-1]))
+	first_start = first_slice.start
+	start = job.exec_window.start
 
-			return (0, job_slices)
-		else:
-			job_slices.append(Slice(job, start, start + space))
-			#print(str(job_slices[-1]))
+	if start < first_start:
+		space = first_start - start
 
-			return (wcet - space, job_slices)
-	else:
-		return (wcet, job_slices)
+		if job.task.criticality != first_slice.job.task.criticality:
+			space -= switch_time
+
+		if space > 0:
+			if wcet <= space:
+				#print(str(job_slices[-1]))
+
+				return (0, [Slice(job, start, start + wcet)])
+			else:
+				#print(str(job_slices[-1]))
+
+				return (wcet - space, [Slice(job, start, start + space)])
+
+	return (wcet, [])
 
 
-def _consume_space(job: Job, slices: list[Slice], job_slices: list[Slice], remaining: int) -> tuple[int, list[Slice]]:
+def _consume_space(job: Job, slices: list[Slice], job_slices: list[Slice], remaining: int, switch_time: int) -> tuple[int, list[Slice]]:
 	#print("\n" + ("\t" * 3) + "_consume_space")
 
 	for i in range(len(slices) - 1):
 		if slices[i].stop < slices[i + 1].start and 0 < (space := slices[i + 1].start - slices[i].stop):
-			if remaining <= space:
-				job_slices.append(Slice(job, slices[i].stop, slices[i].stop + remaining))
-				#print(str(job_slices[-1]))
+			start = slices[i].stop
 
-				return (0, job_slices)
-			else:
-				job_slices.append(Slice(job, slices[i].stop, slices[i].stop + space))
-				#print(str(job_slices[-1]))
-				remaining -= space
+			if job.task.criticality != slices[i].job.task.criticality:
+				start += switch_time
+				space -= switch_time
+
+			if job.task.criticality != slices[i + 1].job.task.criticality:
+				space -= switch_time
+
+			if space > 0:
+				if remaining <= space:
+					job_slices.append(Slice(job, start, start + remaining))
+					#print(str(job_slices[-1]))
+
+					return (0, job_slices)
+				else:
+					job_slices.append(Slice(job, start, start + space))
+					#print(str(job_slices[-1]))
+					remaining -= space
 
 	return (remaining, job_slices)
 
 
-def _consume_trailing_space(job: Job, stop: int, last_stop: int, job_slices: list[Slice], remaining: int) -> list[Slice]:
+def _consume_trailing_space(job: Job, last_job: Job, job_slices: list[Slice], remaining: int, switch_time: int) -> list[Slice]:
 	#print("\n" + ("\t" * 3) + "_consume_trailing_space")
 
-	if last_stop < stop and 0 < (space := stop - last_stop):
+	last_stop = last_job.stop
+
+	if job.task.criticality != last_job.job.task.criticality:
+		last_stop += switch_time
+
+	if last_stop < (stop := job.exec_window.stop):
+		space = stop - last_stop
+
 		if remaining <= space:
 			job_slices.append(Slice(job, last_stop, last_stop + remaining))
 			#print(str(job_slices[-1]))
@@ -132,7 +156,7 @@ def _consume_trailing_space(job: Job, stop: int, last_stop: int, job_slices: lis
 	return job_slices
 
 
-def _get_slices(job: Job, jobs: SortedSet[Job]) -> list[Slice]:
+def _get_slices(job_start: int, job: Job, jobs: SortedSet[Job], switch_time: int) -> list[Slice]:
 	"""Gets the slices those total time is equal to the WCET of a job and that do not intersect with a set of jobs.
 
 	Parameters
@@ -162,17 +186,25 @@ def _get_slices(job: Job, jobs: SortedSet[Job]) -> list[Slice]:
 	if not slices:
 		return [Slice(job, start, start + wcet)]
 
-	remaining, job_slices = _consume_leading_space(job, start, slices[0].start, [], wcet)
+	remaining, job_slices = _consume_leading_space(job, slices[0], wcet, switch_time)
+
+	for i, _slice in enumerate(job_slices):
+		if _slice.start >= job_start:
+			remaining += len(job_slices.pop(i))
 
 	if remaining == 0:
 		return job_slices
 
-	remaining, job_slices = _consume_space(job, slices, job_slices, remaining)
+	remaining, job_slices = _consume_space(job, slices, job_slices, remaining, switch_time)
+
+	for i, _slice in enumerate(job_slices):
+		if _slice.start >= job_start:
+			remaining += len(job_slices.pop(i))
 
 	if remaining == 0:
 		return job_slices
 	else:
-		return _consume_trailing_space(job, job.exec_window.stop, slices[-1].stop, job_slices, remaining)
+		return _consume_trailing_space(job, slices[-1], job_slices, remaining, switch_time)
 
 
 def _generate_exec_slices(job: Job, slices: list[Slice]) -> list[Slice]:
@@ -205,26 +237,25 @@ def _generate_exec_slices(job: Job, slices: list[Slice]) -> list[Slice]:
 		else:
 			job_slices.append(_slice)
 			target_runtime -= len(_slice)
-	"""
+
 	print("\t" * 3 + f"job_slices ({len(job_slices)}) :")
 	for _slice in job_slices:
 		print("\t" * 4 + str(_slice))
-	"""
 
-	return sorted(job_slices)
+	return sorted(job_slices, key=lambda s: s.stop)
 
 # ENTRY POINT #########################################################################################################
 
 
-def schedule(core_jobs: CoreJobMap, algorithm: SchedAlgorithm) -> CoreJobMap:
+def schedule(core_jobs: CoreJobMap, algorithm: SchedAlgorithm, switch_time: int) -> CoreJobMap:
 	"""Schedules a problem into a solution.
 
 	Parameters
 	----------
 	core_jobs : CoreJobMap
 		A map of cores to a set of jobs.
-	ordering : Ordering
-		An ordering algorithm, like EDF or RM.
+	scheduling : SchedAlgorithm
+		An scheduling algorithm, like EDF or RM.
 
 	Returns
 	-------
@@ -237,20 +268,27 @@ def schedule(core_jobs: CoreJobMap, algorithm: SchedAlgorithm) -> CoreJobMap:
 		If the execution slices for a job from set of jobs associated with a core could be all created.
 	"""
 
-	# print("/" * 200)
+	#print("/" * 200)
+
 	for jobs in core_jobs.values():
-		jobs = algorithm(jobs)
+		for job in jobs:
+			job.execution = []
+
+	start: int = 0
+
+	for jobs in core_jobs.values():
 		_key = lambda j: j.task.criticality
 
 		for _crit, _jobs in groupby(sorted(jobs, key=_key, reverse=True), key=_key):
-			for job in _jobs:
-				slices = _get_slices(job, jobs)
-				"""
+			for job in sorted(algorithm(_jobs), key=lambda j: j.exec_window.stop):
+				slices = _get_slices(start, job, jobs, switch_time)
+
 				print("\t" * 2 + f"exec slices ({len(slices)}) :")
 				for _slice in slices:
 					print("\t" * 4 + str(_slice))
-				"""
 
 				job.execution = _generate_exec_slices(job, slices)
+
+				#start = job.execution[-1].stop
 
 	return core_jobs

@@ -3,16 +3,20 @@
 
 # IMPORTS #############################################################################################################
 
+from collections import defaultdict
 from queue import PriorityQueue
-from random import choice, choices
+from random import choice, sample
 
 from algorithm import SchedAlgorithm
 
-from arch_model import Architecture, Core, CoreJobMap, CoreTaskMap
+from arch_model import Architecture, Core, CoreJobMap
 
 from graph_model import App, Graph, Task
 
 from sortedcontainers import SortedSet  # type: ignore
+
+
+Alteration = dict[App, dict[Core, set[Task]]]
 
 
 def _print_initial_mapping(core_jobs: CoreJobMap) -> None:
@@ -27,57 +31,89 @@ def _print_initial_mapping(core_jobs: CoreJobMap) -> None:
 	print("_print_initial_mapping")
 
 	for core, jobs in core_jobs.items():
-		print(core.pformat())
+		print(core.short())
 		for job in jobs:
 			print(job.pformat(1))
 
 
-def _get_core(core_tasks: CoreTaskMap, task: Task) -> Core:
-	for core, tasks in core_tasks.items():
-		if task in tasks:
-			return core
+def _print_alteration_possibilities(possibilities: Alteration) -> None:
+	print("_print_alteration_possibilities")
+
+	for app, core_tasks in possibilities.items():
+		print(app.name)
+		for core, tasks in core_tasks.items():
+			print("\t" + core.short())
+			for task in tasks:
+				print("\t\t" + task.short())
+
+
+def _get_core(arch: Architecture, task: Task) -> Core:
+	for cpu in arch:
+		for core in cpu:
+			if task in core.tasks:
+				return core
 
 	raise RuntimeError(f"Could not find {task.short()} in the mapping.")
 
 
-def _swap_tasks(core_tasks: CoreTaskMap, cores: list[Core], task1: Task, task2: Task) -> None:
-	core_tasks[cores[0]].remove(task1)
-	core_tasks[cores[1]].add(task1)
-	core_tasks[cores[0]].add(task2)
-	core_tasks[cores[1]].remove(task2)
+def _swap_tasks(possibilities: Alteration, app: App, cores: list[Core], task1: Task, task2: Task) -> None:
+	# actual swap
+	cores[0].tasks.remove(task1)
+	cores[1].tasks.append(task1)
+	cores[0].tasks.append(task2)
+	cores[1].tasks.remove(task2)
+
+	# update alteration possibilities
+	possibilities[app][cores[0]].remove(task1)
+	possibilities[app][cores[1]].add(task1)
+	possibilities[app][cores[1]].remove(task2)
+	possibilities[app][cores[0]].add(task2)
 
 
 # ENTRY POINT #########################################################################################################
 
 
-def get_alteration_possibilities(graph: Graph, core_tasks: CoreTaskMap) -> dict[App, dict[Core, set[Task]]]:
-	possibilities: dict[App, dict[Core, set[Task]]] = {}
+def get_alteration_possibilities(arch: Architecture, graph: Graph) -> Alteration:
+	possibilities: Alteration = {}
 
 	for app in filter(lambda app: len(app) >= 2, graph):
-		cores: dict[Core, set[Task]] = {}
+		cores: dict[Core, set[Task]] = defaultdict(set)
 
 		for task in app:
-			core = _get_core(core_tasks, task)
-
-			if core not in cores:
-				cores[core] = set()
-
-			cores[core].add(task)
+			cores[_get_core(arch, task)].add(task)
 
 		if len(cores) >= 2:
 			possibilities[app] = cores
 
+	#_print_alteration_possibilities(possibilities)
+
 	return possibilities
 
 
-def alter_mapping(core_tasks: CoreTaskMap, possibilities: dict[App, dict[Core, set[Task]]]) -> None:
-	if 1 < len(core_tasks.values()) and possibilities:  # make that static
-		app: App = choice(list(possibilities.keys()))
-		cores: list[Core] = choices(list(possibilities[app].keys()), k=2)
-		task1: Task = choice(list(possibilities[app][cores[0]]))
-		task2: Task = choice(list(possibilities[app][cores[1]]))
+def alter_mapping(possibilities: Alteration, algorithm: SchedAlgorithm, neighbor) -> bool:
+	# print("\nalter_mapping")
 
-		_swap_tasks(core_tasks, cores, task1, task2)
+	app: App = choice(list(possibilities.keys()))
+	cores: list[Core] = sample(list(possibilities[app].keys()), k=2)
+
+	"""
+	print('\t' + app.name)
+	for core in cores:
+		print('\t' + core.short())
+	"""
+
+	_swap_tasks(
+		possibilities,
+		app,
+		cores,
+		choice(list(possibilities[app][cores[0]])),
+		choice(list(possibilities[app][cores[1]])),
+	)
+
+	neighbor[cores[0]] = [job for task in cores[0] for job in task]
+	neighbor[cores[1]] = [job for task in cores[1] for job in task]
+
+	return algorithm.core_scheduling_check(cores[0]) and algorithm.core_scheduling_check(cores[1])
 
 
 def mapping(arch: Architecture, apps: SortedSet[App], algorithm: SchedAlgorithm) -> CoreJobMap:
@@ -107,11 +143,13 @@ def mapping(arch: Architecture, apps: SortedSet[App], algorithm: SchedAlgorithm)
 	for app in apps:
 		cpu = cpu_pqueue.get()
 
-		if not cpu.apps or algorithm.local_scheduling_check(cpu, app, algorithm.security_margin):
+		if not cpu.apps or (result := algorithm.local_scheduling_check(cpu, app, algorithm.security_margin)) is None:
 			cpu.apps.add(app)
-			cpu.min_core().tasks.extend(app.tasks)
+
+			for task in app:
+				cpu.min_core().tasks.append(task)
 		else:
-			raise RuntimeError(f"Initial mapping failed with app '{app.name}' on CPU '{cpu.id}'.")
+			raise RuntimeError(f"Initial mapping failed with app '{app.name}' on CPU '{cpu.id}': {result}.")
 
 		cpu_pqueue.put(cpu)
 
@@ -122,6 +160,6 @@ def mapping(arch: Architecture, apps: SortedSet[App], algorithm: SchedAlgorithm)
 			if core.tasks:
 				core_jobs[core] = SortedSet(job for task in core for job in task)
 
-	#_print_initial_mapping(core_jobs)
+	_print_initial_mapping(core_jobs)
 
 	return core_jobs

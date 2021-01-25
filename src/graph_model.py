@@ -124,7 +124,7 @@ class Slice(Sized):
 		"""
 
 		if isinstance(other, Slice):
-			return self.start < other.start and self.stop <= other.start
+			return self.stop < other.stop and self.stop <= other.start
 		else:
 			return NotImplemented
 
@@ -271,6 +271,8 @@ class Job(Set, Reversible):
 			Returns `True` if the last execution slice ends after the scheduling window, or `False` otherwise.
 		"""
 
+		print(self.execution[-1].stop, self.exec_window.stop)
+
 		return self.execution[-1].stop > self.exec_window.stop
 
 	def has_offset_miss(self: Job) -> bool:
@@ -347,7 +349,7 @@ class Job(Set, Reversible):
 
 	def __lt__(self: Job, other: object) -> bool:
 		if isinstance(other, Job):
-			return self.exec_window.start < other.exec_window.start
+			return self.exec_window.stop < other.exec_window.stop
 		else:
 			return NotImplemented
 

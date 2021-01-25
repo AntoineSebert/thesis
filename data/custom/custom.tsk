@@ -1,84 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <graphml>
-	<Graph id="ControlTask" edgedefault="directed">
-		<Node Id="1" Name="T1" WCET="200" Deadline="1000" CIL="4">
-			<Period Value="10000"/>
-		</Node>
-		<Node Id="2" Name="T2" WCET="200" Deadline="1200" CIL="4">
-			<Period Value="10000"/>
-		</Node>
-		<Node Id="3" Name="T3" WCET="200" Deadline="1100" CIL="4">
-			<Period Value="2500"/>
-		</Node>
-		<Node Id="4" Name="T4" WCET="200" Deadline="5000" CIL="4">
-			<Period Value="5000"/>
-		</Node>
-		<Node Id="5" Name="T5" WCET="200" Deadline="5000" CIL="4">
-			<Period Value="5000"/>
-		</Node>
-		<Node Id="6" Name="T6" WCET="200" Deadline="5000" CIL="4">
-			<Period Value="5000"/>
-		</Node>
-		<Node Id="7" Name="T7" WCET="200" Deadline="5000" CIL="4">
-			<Period Value="5000"/>
-		</Node>
-
-		<Node Id="8" Name="T8" WCET="100" Deadline="500" CIL="3">
-			<Period Value="500"/>
-		</Node>
-		<Node Id="9" Name="T9" WCET="200" Deadline="800" CIL="3">
+	<Graph id="IonicColumns" edgedefault="directed">
+		<Node Id="0" Name="C0" WCET="200" Deadline="500" CpuId="0" CIL="4">
 			<Period Value="1000"/>
 		</Node>
-		<Node Id="10" Name="T10" WCET="100" Deadline="1000" CIL="3">
-			<Period Value="1500"/>
-		</Node>
-		<Node Id="11" Name="T11" WCET="200" Deadline="2000" CIL="3">
-			<Period Value="2000"/>
+		<Node Id="1" Name="C1" WCET="200" Deadline="1000" CpuId="0" CIL="4">
+			<Period Value="1000"/>
 		</Node>
 
-		<Node Id="12" Name="T12" WCET="2000" Deadline="5000" CIL="2">
-			<Period Value="5000"/>
-		</Node>
-		<Node Id="13" Name="T13" WCET="200" Deadline="5000" CIL="2">
-			<Period Value="5000"/>
-		</Node>
-		<Node Id="14" Name="T14" WCET="100" Deadline="5000" CIL="2">
-			<Period Value="5000"/>
-		</Node>
-		<Node Id="15" Name="T15" WCET="200" Deadline="4000" CIL="2">
-			<Period Value="5000"/>
-		</Node>
-		<Node Id="16" Name="T16" WCET="100" Deadline="3000" CIL="2">
-			<Period Value="5000"/>
-		</Node>
-		<Node Id="17" Name="T17" WCET="200" Deadline="2000" CIL="2">
-			<Period Value="5000"/>
-		</Node>
-
-		<Application Name="Engine" Inorder="false">
-			<Runnable Name="T1"/>
-			<Runnable Name="T2"/>
-			<Runnable Name="T3"/>
-			<Runnable Name="T4"/>
-			<Runnable Name="T5"/>
-			<Runnable Name="T6"/>
-			<Runnable Name="T7"/>
+		<Application Name="Propylaea" Inorder="false" CA ="false">
+			<Runnable Name="C0"/>
+			<Runnable Name="C1"/>
 		</Application>
 
-		<Application Name="GearBox" Inorder="false">
-			<Runnable Name="T8"/>
-			<Runnable Name="T9"/>
-			<Runnable Name="T10"/>
-			<Runnable Name="T11"/>
-		</Application>
-
-		<Application Name="ABS" Inorder="false">
-			<Runnable Name="T12"/>
-			<Runnable Name="T13"/>
-			<Runnable Name="T14"/>
-			<Runnable Name="T15"/>
-			<Runnable Name="T16"/>
-			<Runnable Name="T17"/>
+		<Application Name="Volute" Inorder="false" CA ="false">
+			<Runnable Name="C0"/>
+			<Runnable Name="C1"/>
 		</Application>
 	</Graph>
 </graphml>

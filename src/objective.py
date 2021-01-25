@@ -15,18 +15,34 @@ from model import Solution
 # FUNCTIONS ###########################################################################################################
 
 def cumulated_empty_space(solution: Solution) -> Score:
-	total_running = 0
+	idle = 0
+	switch_time = solution.problem.config.params.switch_time
+	hyperperiod = solution.problem.graph.hyperperiod
 
 	for jobs in solution.core_jobs.values():
-		total_running += sum(len(_slice) for job in jobs for _slice in job)
+		core_run_time = 0
 
-	return (len(solution.core_jobs) * solution.problem.graph.hyperperiod) - total_running
+		slices = sorted(_slice for job in jobs for _slice in job)
+
+		for i in range(len(slices) - 1):
+			core_run_time += len(slices[i])
+
+			if slices[i].job.task.criticality != slices[i + 1].job.task.criticality:
+				core_run_time += switch_time
+
+		core_run_time += len(slices[len(slices) - 1])
+
+		idle += hyperperiod - core_run_time
+
+	return idle
 
 
+# who to ask for help on this ?
 def normal_distr_empty_space(solution: Solution) -> Score:
 	pass
 
 
+# not working properly
 def min_app_delay(solution: Solution) -> Score:
 	total_delay = 0
 

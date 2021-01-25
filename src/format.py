@@ -240,6 +240,7 @@ def _draw_core(g: Element, core: Core, x: int, y: int, h: int, w: int, hyperperi
 
 	if core in mapping:
 		for job in mapping[core]:
+			job_info: str = f"period: {job.task.period}\ndeadline: {job.task.deadline}\nwcet: {job.task.wcet}"
 			for i, _slice in enumerate(job.execution):
 				slice_rect = SubElement(g, "rect", {
 					"x": str(x + 10 + _slice.start), "y": str(y + 30),
@@ -248,7 +249,10 @@ def _draw_core(g: Element, core: Core, x: int, y: int, h: int, w: int, hyperperi
 					"fill": colors[job.task.criticality],
 					"stroke": "black",
 				})
-				SubElement(slice_rect, "title").text = f"App : {job.task.app.name}"
+				SubElement(
+					slice_rect,
+					"title",
+				).text = f"App : {job.task.app.name}\n{job_info}\nstart: {job.exec_window.start}\nstop: {job.exec_window.stop}"
 				SubElement(
 					g, "text", {"x": str(x + 15 + _slice.start), "y": str(y + 90), "fill": "black", "font-size": "smaller"},
 				).text = f"T{job.task.id}-J{int(job.sched_window.start / job.task.period) + 1}/{len(job.task)}-S{i + 1}/{len(job.execution)}"
@@ -314,7 +318,7 @@ def _svg_format(solution: Solution) -> str:
 
 	svg = Element("svg", {"width": str(img_width), "height": str(img_height), "xmlns": 'http://www.w3.org/2000/svg'})
 
-	title = "Solution for " + solution.problem.config.filepaths.tsk.as_posix()
+	title = "Solution for " + solution.problem.config.filepaths.tsk.as_posix() + f"; score: {solution.score}, offsets sum: {solution.offset_sum}"
 
 	SubElement(svg, "title").text = title
 	SubElement(svg, "desc").text = "An horizontal chart bar showing the solution to the scheduling problem."
@@ -353,7 +357,7 @@ def _svg_format(solution: Solution) -> str:
 
 	indent(svg, space="\t")
 	_svg = tostring(svg, encoding="unicode", xml_declaration=True)
-	print(_svg)
+	#print(_svg)
 
 	return _svg
 

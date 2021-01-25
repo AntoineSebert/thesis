@@ -34,7 +34,7 @@ class Core(Set, Reversible):
 
 	id: int
 	processor: Processor
-	tasks: list[Task] = field(compare=False, default_factory=list)
+	tasks: list[Task] = field(compare=False, default_factory=list) #pqueue
 
 	def workload(self: Core) -> float:
 		"""The workload of the core.

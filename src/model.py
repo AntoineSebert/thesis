@@ -16,6 +16,8 @@ from arch_model import Architecture, CoreJobMap
 
 from graph_model import Graph
 
+from mapper import Alteration
+
 
 # CLASSES AND TYPE ALIASES ############################################################################################
 
@@ -209,6 +211,7 @@ class Solution:
 	core_jobs: CoreJobMap
 	objective: Objective
 	algorithm: SchedAlgorithm
+	possibilities: Alteration
 
 	@cached_property
 	def score(self: Solution) -> Score:

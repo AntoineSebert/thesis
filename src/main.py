@@ -256,7 +256,7 @@ INPUT = TypeVar('INPUT', Configuration, Problem, Solution)
 OUTPUT = TypeVar('OUTPUT', Problem, Solution, str)
 
 
-def _wrapper(config: Configuration, pbar: tqdm, operations: list[Callable[[INPUT], OUTPUT]]) -> str:
+def _wrapper(config: Configuration) -> str:
 	"""Handles a test case from building to solving and formatting.
 
 	Parameters
@@ -274,13 +274,15 @@ def _wrapper(config: Configuration, pbar: tqdm, operations: list[Callable[[INPUT
 		A `Solution` formatted as a `str` in the given format.
 	"""
 
-	output = config
+	problem = build(config)
+	solutions = solve(problem)
 
-	for function in operations:
-		output = function(output)
-		pbar.update()
+	for i, solution in enumerate(sorted(solutions, key= lambda s: s.offset_sum)):
+		file = open(f"output/{i}.svg", 'w')
+		file.write(OutputFormat['svg'](solution))
+		file.close()
 
-	return output
+	return problem
 
 
 # ENTRY POINT #########################################################################################################
@@ -312,15 +314,8 @@ def main() -> int:
 		filepath_pair.tsk.name + "\t" + filepath_pair.cfg.name for filepath_pair in filepath_pairs
 	))
 
-	operations = [build, solve, OutputFormat[args.format]]
-
-	with ThreadPoolExecutor(max_workers=len(filepath_pairs)) as executor,\
-		tqdm(total=len(filepath_pairs) * len(operations)) as pbar:
-
-		futures = [
-			executor.submit(_wrapper, Configuration(filepath_pair, params), pbar, operations)
-			for filepath_pair in filepath_pairs
-		]
+	with ThreadPoolExecutor(max_workers=len(filepath_pairs)) as executor:
+		futures = [executor.submit(_wrapper, Configuration(filepath_pair, params)) for filepath_pair in filepath_pairs]
 
 		for future in as_completed(futures):
 			future.result()
