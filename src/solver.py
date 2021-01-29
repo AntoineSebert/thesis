@@ -65,6 +65,8 @@ def _try_generate_neighbor(source: Solution, core: Core, job: Job, job_index: in
 	initial_step = source.problem.config.params.initial_step
 	switch_time = source.problem.config.params.switch_time
 
+	neighbor[core][job_index].exec_window = slice(job.exec_window.start + initial_step, job.exec_window.stop)
+
 	if source.possibilities:
 		if alter_mapping(source.possibilities, source.algorithm, neighbor):
 			"""
@@ -75,8 +77,6 @@ def _try_generate_neighbor(source: Solution, core: Core, job: Job, job_index: in
 			"""
 		else:
 			raise RuntimeError("Re-mapping unschedulable")
-
-	neighbor[core][job_index].exec_window = slice(job.exec_window.start + initial_step, job.exec_window.stop)
 
 	core_jobs = schedule(neighbor, source.algorithm, switch_time)
 
@@ -122,13 +122,15 @@ def _optimise(initial_solution: Solution) -> list[list[Solution]]:
 	explored_domain: list[list[Solution]] = [[]]
 	explored_domain[0].append(initial_solution)
 
-	while (candidates := get_neighbors(explored_domain[-1][0])):
-		#print(explored_domain[-1][0].score, candidates[0].score)
-		if explored_domain[-1][0].score <= candidates[0].score:
-			#print(explored_domain[-1][0].offset_sum)
-			file = open("output/o-" + str(len(explored_domain)) + ".svg", "w")
-			file.write(_svg_format(candidates[0]))
-			file.close()
+	while candidates := get_neighbors(explored_domain[-1][0]):
+		"""
+		print(f"fittest candidate: {int(candidates[0].score)}")
+		print(f"least fit candidate: {int(candidates[-1].score)}")
+		print(f"target score: {int(explored_domain[-1][0].score)}")
+		print(f"target offset sum: {explored_domain[-1][0].offset_sum}")
+		"""
+
+		if initial_solution.objective.comp(candidates[0].score, explored_domain[-1][0].score) or explored_domain[-1][0].score == candidates[0].score:
 			explored_domain.append(candidates)
 		else:
 			"""
@@ -182,7 +184,7 @@ def solve(problem: Problem) -> list[Solution]:
 		possibilities,
 	)
 
-	solution = initial_solution
+	#print(initial_solution.offset_sum)
 	solutions = _optimise(initial_solution)
 
 	logging.info("Solution found for:\t" + str(problem.config.filepaths))
