@@ -232,7 +232,7 @@ class Solution:
 
 	@cached_property
 	def offset_sum(self: Solution) -> int:
-		return sum(job.offset for jobs in self.core_jobs.values() for job in jobs)
+		return sum(job.offset() for jobs in self.core_jobs.values() for job in jobs)
 
 	def pformat(self: Solution, level: int = 0) -> str:
 		"""A complete description of a solution.
