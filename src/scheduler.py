@@ -85,16 +85,16 @@ def _get_intersecting_slices(target_job: Job, jobs: SortedSet[Job]) -> list[Slic
 	return sorted(slices, key=lambda s: s.stop)
 
 
-def _consume_leading_space(job: Job, first_slice: Job, wcet: int, switch_time: int) -> tuple[int, list[Slice]]:
+def _consume_leading_space(job: Job, first: Slice, wcet: int, switch_time: int) -> tuple[int, list[Slice]]:
 	#print("\n" + ("\t" * 3) + "_consume_leading_space")
 
-	first_start = first_slice.start
+	first_start = first.start
 	start = job.exec_window.start
 
 	if start < first_start:
 		space = first_start - start
 
-		if job.task.criticality != first_slice.job.task.criticality:
+		if job.task.criticality != first.job.task.criticality:
 			space -= switch_time
 
 		if space > 0:
@@ -114,7 +114,7 @@ def _consume_space(job: Job, slices: list[Slice], job_slices: list[Slice], remai
 	#print("\n" + ("\t" * 3) + "_consume_space")
 
 	for i in range(len(slices) - 1):
-		if slices[i].stop < slices[i + 1].start and 0 < (space := slices[i + 1].start - slices[i].stop):
+		if 0 < (space := slices[i + 1].start - slices[i].stop) and slices[i].stop < slices[i + 1].start:
 			start = slices[i].stop
 
 			if job.task.criticality != slices[i].job.task.criticality:
@@ -273,21 +273,17 @@ def schedule(core_jobs: CoreJobMap, algorithm: SchedAlgorithm, switch_time: int)
 		for job in jobs:
 			job.execution = []
 
-	start: int = 0
-
 	for jobs in core_jobs.values():
 		_key = lambda j: j.task.criticality
 
 		for _crit, _jobs in groupby(sorted(jobs, key=_key, reverse=True), key=_key):
 			for job in sorted(algorithm(_jobs), key=lambda j: j.exec_window.stop):
-				slices = _get_slices(start, job, jobs, switch_time)
-
+				slices = _get_slices(job, jobs, switch_time)
+				"""
 				print("\t" * 2 + f"exec slices ({len(slices)}) :")
 				for _slice in slices:
 					print("\t" * 4 + str(_slice))
-
+				"""
 				job.execution = _generate_exec_slices(job, slices)
-
-				#start = job.execution[-1].stop
 
 	return core_jobs
