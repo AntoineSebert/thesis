@@ -277,7 +277,7 @@ def _wrapper(config: Configuration) -> str:
 	problem = build(config)
 	solutions = solve(problem)
 
-	for i, solution in enumerate(sorted(solutions, key= lambda s: s.offset_sum)):
+	for i, solution in enumerate(solutions):
 		file = open(f"output/{i}.svg", 'w')
 		file.write(OutputFormat['svg'](solution))
 		file.close()
@@ -322,9 +322,7 @@ def main() -> int:
 
 		logging.info(f"Total ellasped time: {process_time()}s.")
 
-		return 0
-
-	return -1
+	return 0
 
 
 if __name__ == "__main__":
