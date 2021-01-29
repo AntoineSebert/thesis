@@ -45,7 +45,7 @@ def _local_check_rm(cores: Sequence[Core], tasks: Sequence[Task], security_margi
 
 def _local_check(total_workload: float, sufficient_condition: float) -> SchedCheckResult:
 	if total_workload > sufficient_condition:
-		return (total_workload, sufficient_condition)
+		return total_workload, sufficient_condition
 	else:
 		return None
 

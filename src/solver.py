@@ -94,10 +94,6 @@ def get_neighbors(solution: Solution) -> list[Solution]:
 	----------
 	solution : Solution
 		A target Solution.
-	ordering : Ordering
-		An ordering, like EDF or RM.
-	sched_check : SchedCheck
-		A schedulability checker.
 
 	Returns
 	-------
@@ -105,9 +101,9 @@ def get_neighbors(solution: Solution) -> list[Solution]:
 		A list of candidates, may be empty.
 	"""
 
-	# print("\tget_neighbors")
+	print("\tget_neighbors")
 
-	candidates = []
+	candidates: list[Solution] = []
 	initial_step = solution.problem.config.params.initial_step
 
 	for core, jobs in solution.core_jobs.items():

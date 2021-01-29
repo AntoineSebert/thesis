@@ -49,9 +49,9 @@ def min_app_delay(solution: Solution) -> Score:
 	for app in solution.problem.graph:
 		# get app length
 		# if app.order
-			# assert len(task) for all tasks is the same
+		#   assert len(task) for all tasks is the same
 		# for each app activation
-			# get delay
+		#   get delay
 		if app.order:
 			total_delay += app[-1].jobs[-1].execution[-1].stop - app[0].jobs[0].execution[0].start
 		else:

@@ -271,7 +271,7 @@ class Job(Set, Reversible):
 			Returns `True` if the last execution slice ends after the scheduling window, or `False` otherwise.
 		"""
 
-		print(self.execution[-1].stop, self.exec_window.stop)
+		#print(self.execution[-1].stop, self.exec_window.stop)
 
 		return self.execution[-1].stop > self.exec_window.stop
 
@@ -317,7 +317,7 @@ class Job(Set, Reversible):
 		----------
 		self : Job
 			The instance of `Job`.
-		level, optional : int
+		level : int, optional
 			The indentation level (default: 0).
 
 		Returns
@@ -463,7 +463,7 @@ class Task(Set, Reversible):
 		----------
 		self : Task
 			The instance of `Task`.
-		level, optional : int
+		level : int, optional
 			The indentation level (default: 0).
 
 		Returns
@@ -587,7 +587,7 @@ class App(Sequence, Reversible):
 		----------
 		self : App
 			The instance of `Task`.
-		level, optional : int
+		level : int, optional
 			The indentation level (default: 0).
 
 		Returns
@@ -694,7 +694,7 @@ class Graph(Set, Reversible):
 		----------
 		self : Graph
 			The instance of `Graph`.
-		level, optional : int
+		level : int, optional
 			The indentation level (default: 0).
 
 		Returns
@@ -705,7 +705,7 @@ class Graph(Set, Reversible):
 
 		i = "\n" + ("\t" * level)
 
-		return (f"{i}graph {{{i}\thyperperiod : {self.hyperperiod};" + "".join(app.pformat(level + 1) for app in self) + i + "}")
+		return f"{i}graph {{{i}\thyperperiod : {self.hyperperiod};" + "".join(app.pformat(level + 1) for app in self) + i + "}"
 
 	# SET
 

@@ -17,7 +17,7 @@ from sortedcontainers import SortedSet  # type: ignore
 
 # CLASSES AND TYPE ALIASES ############################################################################################
 
-@dataclass(eq=True)
+@dataclass
 @total_ordering
 class Core(Set, Reversible):
 	"""Represents a core.
@@ -75,7 +75,7 @@ class Core(Set, Reversible):
 		----------
 		self : Core
 			The instance of `Core`.
-		level, optional
+		level : int, optional
 			The indentation level (default: 0).
 
 		Returns
@@ -84,8 +84,7 @@ class Core(Set, Reversible):
 			The complete description.
 		"""
 
-		return ("\n" + ("\t" * level)
-			+ f"core {{ id : {self.id}; processor : {self.processor.id}; workload: {self.workload}; }}")
+		return ("\n" + ("\t" * level) + f"core {{ id : {self.id}; processor : {self.processor.id}; workload: {self.workload}; }}")
 
 	# HASHABLE
 
@@ -135,7 +134,7 @@ class Core(Set, Reversible):
 		return result
 
 
-@dataclass(eq=True)
+@dataclass
 @total_ordering
 class Processor(Set, Reversible):
 	"""Represents a processor.
@@ -193,7 +192,7 @@ class Processor(Set, Reversible):
 		----------
 		self : Processor
 			The instance of `Processor`.
-		level, optional : int
+		level : int, optional
 			The indentation level (default: 0).
 
 		Returns

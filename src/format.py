@@ -391,7 +391,7 @@ class OutputFormat(Enum):
 	raw: partial = partial(_raw_format)
 
 	def __call__(self: Any, solution: Solution) -> str:
-		"""Converts the enumeratino member into the corresponding function call.
+		"""Converts the enumeration member into the corresponding function call.
 
 		Parameters
 		----------

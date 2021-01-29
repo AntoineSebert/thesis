@@ -107,7 +107,7 @@ def _consume_leading_space(job: Job, first_slice: Job, wcet: int, switch_time: i
 
 				return (wcet - space, [Slice(job, start, start + space)])
 
-	return (wcet, [])
+	return wcet, []
 
 
 def _consume_space(job: Job, slices: list[Slice], job_slices: list[Slice], remaining: int, switch_time: int) -> tuple[int, list[Slice]]:
@@ -135,7 +135,7 @@ def _consume_space(job: Job, slices: list[Slice], job_slices: list[Slice], remai
 					#print(str(job_slices[-1]))
 					remaining -= space
 
-	return (remaining, job_slices)
+	return remaining, job_slices
 
 
 def _consume_trailing_space(job: Job, last_job: Job, job_slices: list[Slice], remaining: int, switch_time: int) -> list[Slice]:
@@ -237,10 +237,11 @@ def _generate_exec_slices(job: Job, slices: list[Slice]) -> list[Slice]:
 		else:
 			job_slices.append(_slice)
 			target_runtime -= len(_slice)
-
+	"""
 	print("\t" * 3 + f"job_slices ({len(job_slices)}) :")
 	for _slice in job_slices:
 		print("\t" * 4 + str(_slice))
+	"""
 
 	return sorted(job_slices, key=lambda s: s.stop)
 
@@ -254,7 +255,7 @@ def schedule(core_jobs: CoreJobMap, algorithm: SchedAlgorithm, switch_time: int)
 	----------
 	core_jobs : CoreJobMap
 		A map of cores to a set of jobs.
-	scheduling : SchedAlgorithm
+	algorithm : SchedAlgorithm
 		An scheduling algorithm, like EDF or RM.
 
 	Returns

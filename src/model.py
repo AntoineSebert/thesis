@@ -43,7 +43,7 @@ class FilepathPair(NamedTuple):
 		----------
 		self : FilepathPair
 			The instance of `FilepathPair`.
-		level, optional : int
+		level : int, optional
 			The indentation level (default: 0).
 
 		Returns
@@ -87,7 +87,7 @@ class Parameters(NamedTuple):
 		----------
 		self : Parameters
 			The instance of `Parameters`.
-		level, optional : int
+		level : int, optional
 			The indentation level (default: 0).
 
 		Returns
@@ -136,7 +136,7 @@ class Configuration(NamedTuple):
 		----------
 		self : Configuration
 			The instance of `Configuration`.
-		level, optional : int
+		level : int, optional
 			The indentation level (default: 0).
 
 		Returns
@@ -176,7 +176,7 @@ class Problem(NamedTuple):
 		----------
 		self : Problem
 			The instance of `Problem`.
-		level, optional : int
+		level : int, optional
 			The indentation level (default: 0).
 
 		Returns
@@ -221,8 +221,6 @@ class Solution:
 		----------
 		self : Solution
 			The instance of `Solution`.
-		scoring : Scoring
-			A scoring algorithm.
 
 		Returns
 		-------
@@ -243,7 +241,7 @@ class Solution:
 		----------
 		self : Solution
 			The instance of `Solution`.
-		level, optional
+		level : int, optional
 			The indentation level (default: 0).
 
 		Returns
