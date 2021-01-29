@@ -56,18 +56,28 @@ def _get_core(arch: Architecture, task: Task) -> Core:
 	raise RuntimeError(f"Could not find {task.short()} in the mapping.")
 
 
-def _swap_tasks(possibilities: Alteration, app: App, cores: list[Core], task1: Task, task2: Task) -> None:
+def _swap_tasks(possibilities: Alteration, app: App, cores: list[Core], task0: Task, task1: Task, neighbor: CoreJobMap) -> None:
 	# actual swap
-	cores[0].tasks.remove(task1)
-	cores[1].tasks.append(task1)
-	cores[0].tasks.append(task2)
-	cores[1].tasks.remove(task2)
+	cores[0].tasks.remove(task0)
+	cores[1].tasks.append(task0)
+	cores[0].tasks.append(task1)
+	cores[1].tasks.remove(task1)
+
+	for job in neighbor[cores[0]]:
+		if job.task == task0:
+			neighbor[cores[0]].append(job)
+			neighbor[cores[0]].remove(job)
+
+	for job in neighbor[cores[1]]:
+		if job.task == task1:
+			neighbor[cores[1]].append(job)
+			neighbor[cores[1]].remove(job)
 
 	# update alteration possibilities
-	possibilities[app][cores[0]].remove(task1)
-	possibilities[app][cores[1]].add(task1)
-	possibilities[app][cores[1]].remove(task2)
-	possibilities[app][cores[0]].add(task2)
+	possibilities[app][cores[0]].remove(task0)
+	possibilities[app][cores[1]].add(task0)
+	possibilities[app][cores[1]].remove(task1)
+	possibilities[app][cores[0]].add(task1)
 
 
 # ENTRY POINT #########################################################################################################
@@ -108,10 +118,8 @@ def alter_mapping(possibilities: Alteration, algorithm: SchedAlgorithm, neighbor
 		cores,
 		choice(list(possibilities[app][cores[0]])),
 		choice(list(possibilities[app][cores[1]])),
+		neighbor,
 	)
-
-	neighbor[cores[0]] = [job for task in cores[0] for job in task]
-	neighbor[cores[1]] = [job for task in cores[1] for job in task]
 
 	return algorithm.core_scheduling_check(cores[0]) and algorithm.core_scheduling_check(cores[1])
 
