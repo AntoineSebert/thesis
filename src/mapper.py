@@ -90,7 +90,7 @@ def get_alteration_possibilities(arch: Architecture, graph: Graph) -> Alteration
 	return possibilities
 
 
-def alter_mapping(possibilities: Alteration, algorithm: SchedAlgorithm, neighbor) -> bool:
+def alter_mapping(possibilities: Alteration, algorithm: SchedAlgorithm, neighbor: CoreJobMap) -> bool:
 	# print("\nalter_mapping")
 
 	app: App = choice(list(possibilities.keys()))
@@ -158,8 +158,8 @@ def mapping(arch: Architecture, apps: SortedSet[App], algorithm: SchedAlgorithm)
 	for cpu in arch:
 		for core in cpu:
 			if core.tasks:
-				core_jobs[core] = SortedSet(job for task in core for job in task)
+				core_jobs[core] = [job for task in core for job in task]
 
-	_print_initial_mapping(core_jobs)
+	#_print_initial_mapping(core_jobs)
 
 	return core_jobs

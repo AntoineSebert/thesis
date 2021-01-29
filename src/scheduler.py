@@ -138,12 +138,12 @@ def _consume_space(job: Job, slices: list[Slice], job_slices: list[Slice], remai
 	return remaining, job_slices
 
 
-def _consume_trailing_space(job: Job, last_job: Job, job_slices: list[Slice], remaining: int, switch_time: int) -> list[Slice]:
+def _consume_trailing_space(job: Job, last: Slice, job_slices: list[Slice], remaining: int, switch_time: int) -> list[Slice]:
 	#print("\n" + ("\t" * 3) + "_consume_trailing_space")
 
-	last_stop = last_job.stop
+	last_stop = last.stop
 
-	if job.task.criticality != last_job.job.task.criticality:
+	if job.task.criticality != last.job.task.criticality:
 		last_stop += switch_time
 
 	if last_stop < (stop := job.exec_window.stop):
@@ -156,7 +156,7 @@ def _consume_trailing_space(job: Job, last_job: Job, job_slices: list[Slice], re
 	return job_slices
 
 
-def _get_slices(job_start: int, job: Job, jobs: SortedSet[Job], switch_time: int) -> list[Slice]:
+def _get_slices(job: Job, jobs: SortedSet[Job], switch_time: int) -> list[Slice]:
 	"""Gets the slices those total time is equal to the WCET of a job and that do not intersect with a set of jobs.
 
 	Parameters
@@ -189,8 +189,7 @@ def _get_slices(job_start: int, job: Job, jobs: SortedSet[Job], switch_time: int
 	remaining, job_slices = _consume_leading_space(job, slices[0], wcet, switch_time)
 
 	for i, _slice in enumerate(job_slices):
-		if _slice.start >= job_start:
-			remaining += len(job_slices.pop(i))
+		remaining += len(job_slices.pop(i))
 
 	if remaining == 0:
 		return job_slices
@@ -198,8 +197,7 @@ def _get_slices(job_start: int, job: Job, jobs: SortedSet[Job], switch_time: int
 	remaining, job_slices = _consume_space(job, slices, job_slices, remaining, switch_time)
 
 	for i, _slice in enumerate(job_slices):
-		if _slice.start >= job_start:
-			remaining += len(job_slices.pop(i))
+		remaining += len(job_slices.pop(i))
 
 	if remaining == 0:
 		return job_slices

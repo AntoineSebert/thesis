@@ -121,8 +121,7 @@ class Core(Set, Reversible):
 		return self.tasks.__reversed__()
 
 	# DEEPCOPY
-
-	def __deepcopy__(self: Core, memo: dict[int, object]) -> Processor:
+	def __deepcopy__(self: Core, memo: dict[int, object]) -> Core:
 		cls = self.__class__
 		result = cls.__new__(cls)
 		memo[id(self)] = result

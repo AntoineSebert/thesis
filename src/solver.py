@@ -59,8 +59,9 @@ def _is_feasible(graph: Graph, core_jobs: CoreJobMap) -> bool:
 
 
 def _try_generate_neighbor(source: Solution, core: Core, job: Job, job_index: int) -> Optional[Solution]:
-	# print("\t\t_try_generate_neighbor")
-	neighbor = {deepcopy(core): deepcopy(jobs) for core, jobs in source.core_jobs.items()}
+	print("\t\t_try_generate_neighbor")
+
+	neighbor: CoreJobMap = {deepcopy(core): deepcopy(jobs) for core, jobs in source.core_jobs.items()}
 	initial_step = source.problem.config.params.initial_step
 	switch_time = source.problem.config.params.switch_time
 
@@ -115,9 +116,8 @@ def get_neighbors(solution: Solution) -> list[Solution]:
 	return sorted(candidates)
 
 
-def _optimise(initial_solution: Solution) -> Solution:
-	from format import _svg_format
-	# print("_optimize")
+def _optimise(initial_solution: Solution) -> list[list[Solution]]:
+	print("_optimize")
 
 	explored_domain: list[list[Solution]] = [[]]
 	explored_domain[0].append(initial_solution)
@@ -151,7 +151,7 @@ def _optimise(initial_solution: Solution) -> Solution:
 
 
 @timed_callable("Solving the problem...")
-def solve(problem: Problem) -> Solution:
+def solve(problem: Problem) -> list[Solution]:
 	"""Creates the solution for a problem.
 
 	Parameters
