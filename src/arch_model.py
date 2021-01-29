@@ -244,7 +244,7 @@ class Processor(Set, Reversible):
 Architecture = set[Processor]
 
 """Maps a core to a set of tasks."""
-CoreTaskMap = dict[Core, SortedSet[Task]]
+CoreTaskMap = dict[Core, list[Task]]
 
 """Maps a core to a set of jobs."""
-CoreJobMap = dict[Core, SortedSet[Job]]
+CoreJobMap = dict[Core, list[Job]]

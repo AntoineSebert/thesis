@@ -410,7 +410,7 @@ class Task(Set, Reversible):
 		The criticality level, [0; 4].
 	parent : Task
 		A list of tasks to be completed before starting.
-	jobs : SortedSet[Job]
+	jobs : list[Job]
 		A set of n instances of the task, with n = int(wcet / hyperperiod).
 	"""
 
@@ -421,7 +421,7 @@ class Task(Set, Reversible):
 	deadline: int
 	criticality: Criticality
 	parent: Task
-	jobs: SortedSet[Job] = field(default_factory=SortedSet)
+	jobs: list[Job] = field(default_factory=list)
 
 	@cached_property
 	def workload(self: Task) -> float:
@@ -661,13 +661,13 @@ class Graph(Set, Reversible):
 
 	Attributes
 	----------
-	apps : SortedSet[App]
+	apps : list[App]
 		The applications to schedule.
 	hyperperiod : int
 		The hyperperiod length for this `Graph`, the least common divisor of the periods of all tasks.
 	"""
 
-	apps: SortedSet[App]
+	apps: list[App]
 	hyperperiod: int
 
 	@cached_property

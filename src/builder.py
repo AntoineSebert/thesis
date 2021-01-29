@@ -16,8 +16,6 @@ from graph_model import App, Criticality, Graph, Job, Task
 
 from model import Configuration, Problem
 
-from sortedcontainers import SortedSet  # type: ignore
-
 from timed import timed_callable
 
 
@@ -81,7 +79,7 @@ def _compute_hyperperiod(apps: list[App]) -> int:
 	return lcm(*periods)
 
 
-def _create_jobs(apps: list[App], hyperperiod: int) -> SortedSet[App]:
+def _create_jobs(apps: list[App], hyperperiod: int) -> list[App]:
 	"""Create the jobs for the tasks in all applications.
 	If local hyperperiods were to be implemented, this step should be moved at the end of the initial mapping.
 
@@ -94,7 +92,7 @@ def _create_jobs(apps: list[App], hyperperiod: int) -> SortedSet[App]:
 
 	Returns
 	-------
-	apps : SortedSet[App]
+	apps : list[App]
 		A set of applications whose tasks have been populated with jobs.
 	"""
 
@@ -103,7 +101,7 @@ def _create_jobs(apps: list[App], hyperperiod: int) -> SortedSet[App]:
 			for i in range(int(hyperperiod / task.period)):
 				start = i * task.period
 				window = slice(start, start + task.deadline)
-				task.jobs.add(Job(task, window, window))
+				task.jobs.append(Job(task, window, window))
 
 	return apps
 

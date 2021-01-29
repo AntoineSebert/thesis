@@ -21,8 +21,6 @@ from objective import objectives
 
 from scheduler import schedule
 
-from sortedcontainers import SortedSet  # type: ignore
-
 from timed import timed_callable
 
 
@@ -121,8 +119,8 @@ def _optimise(initial_solution: Solution) -> Solution:
 	from format import _svg_format
 	# print("_optimize")
 
-	explored_domain: list[SortedSet[Solution]] = [SortedSet()]
-	explored_domain[0].add(initial_solution)
+	explored_domain: list[list[Solution]] = [[]]
+	explored_domain[0].append(initial_solution)
 
 	while (candidates := get_neighbors(explored_domain[-1][0])):
 		#print(explored_domain[-1][0].score, candidates[0].score)
