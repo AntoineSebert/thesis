@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from operator import gt, lt
+from statistics import variance
 from typing import Callable, Union
 
 from model import Solution
@@ -39,7 +40,24 @@ def cumulated_empty_space(solution: Solution) -> Score:
 
 # who to ask for help on this ?
 def normal_distr_empty_space(solution: Solution) -> Score:
-	pass
+	idle_slices = []
+	hyperperiod = solution.problem.graph.hyperperiod
+
+	for jobs in solution.core_jobs.values():
+		if slices := sorted(_slice for job in jobs for _slice in job):
+			# first : space before
+			idle_slices.append(slices[0].start)
+
+			# spaces in between
+			for i in range(len(slices) - 1):
+				idle_slices.append(slices[i + 1].start - slices[i].stop)
+
+			# last : space after
+			idle_slices.append(hyperperiod - slices[len(slices) - 1].stop)
+
+	print(idle_slices, int(variance(idle_slices)))
+
+	return variance(idle_slices)
 
 
 # not working properly
