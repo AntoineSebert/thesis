@@ -91,7 +91,7 @@ class Slice(Sized):
 		"""
 
 		if isinstance(other, Slice):
-			return other.stop <= self.start and other.stop < self.stop
+			return other.stop <= self.start
 		else:
 			return NotImplemented
 
@@ -124,7 +124,7 @@ class Slice(Sized):
 		"""
 
 		if isinstance(other, Slice):
-			return self.stop < other.stop and self.stop <= other.start
+			return self.stop <= other.start
 		else:
 			return NotImplemented
 
@@ -136,9 +136,7 @@ class Slice(Sized):
 		other    |-----|
 		"""
 
-		if isinstance(other, Slice):
-			return self.start < other.stop and other.start < self.stop
-		elif isinstance(other, slice):
+		if isinstance(other, Slice) or isinstance(other, slice):
 			return self.start < other.stop and other.start < self.stop
 		else:
 			return NotImplemented
@@ -151,8 +149,10 @@ class Slice(Sized):
 		"""
 
 		if isinstance(other, Slice):
-			if other.stop < self.start:
+			if other < self:
 				return Slice(self.job, other.stop, self.start)
+			elif self < other:
+				return Slice(other.job, self.stop, other.start)
 			else:
 				return Slice(self.job, 0, 0)
 		else:
@@ -207,7 +207,6 @@ class Job(Set, Reversible):
 
 		return sum((len(_slice) for _slice in self), start=0)
 
-	@cached_property
 	def offset(self: Job) -> int:
 		"""Computes and returns the offset of the job.
 
