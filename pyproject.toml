@@ -24,7 +24,7 @@ classifiers = [
 [tool.poetry.dependencies]
 python = "^3.9"
 tqdm = "*"
-defusedxml = "^0.6.0"
+defusedxml = "^0.7.0"
 sortedcontainers = "^2.2"
 
 [tool.poetry.dev-dependencies]
